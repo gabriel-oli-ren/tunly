@@ -1,0 +1,63 @@
+name: iOS Build (Unsigned - Free Method) - Test
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build-ios:
+    name: Build iOS IPA (Unsigned)
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter SDK
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          architecture: x64
+          cache: true
+
+      - name: Install Flutter dependencies
+        run: flutter pub get
+
+      - name: Build iOS IPA (Unsigned)
+        run: |
+          # Build iOS app for device architecture (arm64) without code signing
+          flutter build ios --release --no-codesign
+
+      - name: Create IPA from .app
+        run: |
+          # Manually create IPA from the built .app file
+          mkdir -p Payload
+          cp -r build/ios/iphoneos/Runner.app Payload/
+          zip -r tunely-ios-unsigned.ipa Payload
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tunely-ios-unsigned
+          path: tunely-ios-unsigned.ipa
+          retention-days: 30
+
+      - name: Create build summary
+        if: success()
+        run: |
+          echo "## 🎉 iOS Build Successful!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Build Details" >> $GITHUB_STEP_SUMMARY
+          echo "- **Platform**: iOS" >> $GITHUB_STEP_SUMMARY
+          echo "- **Signing**: Unsigned (Free method)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Installation with AltStore" >> $GITHUB_STEP_SUMMARY
+          echo "1. Download AltStore from https://altstore.io" >> $GITHUB_STEP_SUMMARY
+          echo "2. Install AltStore on your iPhone" >> $GITHUB_STEP_SUMMARY
+          echo "3. Download the IPA from Artifacts" >> $GITHUB_STEP_SUMMARY
+          echo "4. Open AltStore on your computer" >> $GITHUB_STEP_SUMMARY
+          echo "5. Click '+' and select the IPA file" >> $GITHUB_STEP_SUMMARY
+          echo "6. Enter your personal Apple ID (g337abriel@gmail.com)" >> $GITHUB_STEP_SUMMARY
+          echo "7. Install on your iPhone" >> $GITHUB_STEP_SUMMARY

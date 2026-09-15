@@ -1,0 +1,61 @@
+# Codemagic configuration for Tunely Flutter iOS app
+# Flutter-specific configuration for automated iOS builds
+
+workflows:
+  ios-workflow:
+    name: iOS Build Workflow
+    max_build_duration: 120
+    instance_type: mac_mini_m2
+    
+    environment:
+      vars:
+        FLUTTER_VERSION: "3.16.0"
+        XCODE_VERSION: "15.0"
+      xcode: latest
+      cocoapods: default
+      
+    triggering:
+      events:
+        - push
+        - pull_request
+      branch_patterns:
+        - pattern: main
+          include: true
+          source: true
+          
+    scripts:
+      - name: Install Flutter
+        script: |
+          cd $CM_BUILD_DIR
+          curl -L https://storage.googleapis.com/flutter_infra_release/releases/stable/macos/flutter_macos_${FLUTTER_VERSION}_stable.zip -o flutter.zip
+          unzip -q flutter.zip
+          export PATH="$PATH:$CM_BUILD_DIR/flutter/bin"
+          flutter doctor -v
+          
+      - name: Install Flutter dependencies
+        script: |
+          cd $CM_BUILD_DIR
+          export PATH="$PATH:$CM_BUILD_DIR/flutter/bin"
+          flutter pub get
+          
+      - name: Build iOS (Release)
+        script: |
+          cd $CM_BUILD_DIR
+          export PATH="$PATH:$CM_BUILD_DIR/flutter/bin"
+          flutter build ios --release --no-codesign
+          
+      - name: Create IPA
+        script: |
+          cd $CM_BUILD_DIR/build/ios/iphoneos
+          zip -r $CM_BUILD_DIR/tunely-ios.ipa Runner.app
+          
+    artifacts:
+      - tunely-ios.ipa
+      
+    publishing:
+      email:
+        recipients:
+          - g337abriel@gmail.com
+        notify:
+          success: true
+          failure: true

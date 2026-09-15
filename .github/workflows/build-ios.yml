@@ -1,0 +1,122 @@
+name: Build iOS IPA
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      flutter_version:
+        description: 'Flutter version'
+        required: false
+        default: '3.16.0'
+      build_type:
+        description: 'Build type (debug, profile, release)'
+        required: false
+        default: 'release'
+        type: choice
+        options:
+          - debug
+          - profile
+          - release
+
+jobs:
+  build:
+    name: Build iOS IPA
+    runs-on: macos-latest
+    
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🏗️ Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ github.event.inputs.flutter_version || '3.16.0' }}
+          channel: 'stable'
+          cache: true
+
+      - name: 📦 Install dependencies
+        run: flutter pub get
+
+      - name: 🔍 Verify Flutter installation
+        run: flutter doctor -v
+
+      - name: 📱 Build iOS IPA
+        run: |
+          BUILD_TYPE="${{ github.event.inputs.build_type || 'release' }}"
+          flutter build ios --$BUILD_TYPE --no-codesign
+
+      - name: 📦 Create IPA
+        run: |
+          cd build/ios/iphoneos
+          zip -r ../../../tunely-ios.ipa Runner.app
+
+      - name: 📤 Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tunely-ios-ipa-${{ github.sha }}
+          path: ./tunely-ios.ipa
+          retention-days: 30
+
+      - name: 📋 Create build summary
+        if: success()
+        run: |
+          echo "## 🎉 iOS Build Successful!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Build Details" >> $GITHUB_STEP_SUMMARY
+          echo "- **Platform**: iOS" >> $GITHUB_STEP_SUMMARY
+          echo "- **Build Type**: ${{ github.event.inputs.build_type || 'release' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Flutter Version**: ${{ github.event.inputs.flutter_version || '3.16.0' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Artifact**: Download IPA from Artifacts section" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Installation" >> $GITHUB_STEP_SUMMARY
+          echo "1. Download the IPA from the Artifacts section" >> $GITHUB_STEP_SUMMARY
+          echo "2. Use tools like AltStore, Sideloadly, or Apple Configurator to install" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Flutter Liquid Glass Features" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Liquid Glass Renderer UI Components" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Native iOS Impeller Rendering" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ YouTube Audio Streaming" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Premium Dark Mode UI" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Glassmorphism Effects" >> $GITHUB_STEP_SUMMARY
+
+  build-preview:
+    name: Build iOS Preview
+    runs-on: macos-latest
+    if: github.event_name == 'pull_request'
+    
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🏗️ Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.16.0'
+          channel: 'stable'
+          cache: true
+
+      - name: 📦 Install dependencies
+        run: flutter pub get
+
+      - name: 📱 Build iOS Preview
+        run: flutter build ios --profile --no-codesign
+
+      - name: 📋 PR Comment
+        uses: actions/github-script@v7
+        if: success()
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '## 🎉 iOS Preview Build Completed!\n\nThe Flutter preview build has been created successfully. You can test it by downloading the IPA from the Artifacts section.'
+            })
