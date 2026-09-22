@@ -28,7 +28,7 @@ jobs:
       run: flutter doctor -v
 
     - name: Build iOS (no codesign)
-      run: flutter build ios --release --no-codesign
+      run: flutter build ios --release --no-codesign --workspace
 
     - name: Export unsigned .ipa
       run: |
