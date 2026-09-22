@@ -1,0 +1,58 @@
+name: Build iOS App
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+jobs:
+  build-ios:
+    runs-on: macos-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: 'stable'
+        channel: 'stable'
+        cache: true
+
+    - name: Install dependencies
+      run: flutter pub get
+
+    - name: Verify Flutter installation
+      run: flutter doctor -v
+
+    - name: Build iOS (no codesign)
+      run: flutter build ios --release --no-codesign
+
+    - name: Export unsigned .ipa
+      run: |
+        # Create the .ipa from the build output
+        cd build/ios/iphoneos
+        mkdir -p Payload
+        cp -R Runner.app Payload/
+        zip -r Tunly-unsigned.ipa Payload/
+        mv Tunly-unsigned.ipa ../../../
+
+    - name: Upload unsigned .ipa artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: tunly-ios-unsigned
+        path: Tunly-unsigned.ipa
+        retention-days: 30
+
+    - name: Build iOS Simulator version (for testing)
+      run: flutter build ios --release --simulator
+
+    - name: Upload simulator build
+      uses: actions/upload-artifact@v4
+      with:
+        name: tunly-ios-simulator
+        path: build/ios/iphonesimulator/Runner.app
+        retention-days: 7
