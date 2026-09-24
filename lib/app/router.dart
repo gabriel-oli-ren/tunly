@@ -10,7 +10,8 @@ final appRouter = GoRouter(
         builder: (context, state) => const AppShell(tab: 'home')),
     GoRoute(
         path: '/search',
-        builder: (context, state) => const AppShell(tab: 'search')),
+        builder: (context, state) => AppShell(
+            tab: 'search', searchQuery: state.uri.queryParameters['q'])),
     GoRoute(
         path: '/library',
         builder: (context, state) => const AppShell(tab: 'library')),

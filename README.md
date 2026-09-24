@@ -4,7 +4,7 @@ Tunly is a cross-platform music discovery app built with Flutter. The web target
 
 ## Requirements
 
-- Flutter stable with Dart 3.4 or newer
+- Flutter stable with Dart 3.9 or newer
 - Windows 10/11 with Chrome for local web development
 - Git (optional, for deployment)
 
@@ -24,7 +24,7 @@ flutter build web --release
 
 The deployable site is written to `build/web`. Keep the hosting base path in mind: for a project site hosted below a repository path, build with `--base-href /repository-name/`.
 
-The iOS-style Flutter app also runs in Chrome for day-to-day development. The web release build has been checked; a native iOS build must run on macOS with Xcode, which Codemagic provides as a hosted build machine.
+The iOS-style Flutter app also runs in Chrome for day-to-day development. Native iOS controls use `cupertino_native`; its library filter, add button, and tab bar fall back to Flutter Cupertino controls in the PWA. A native iOS build must run on macOS with Xcode, which Codemagic provides as a hosted build machine.
 
 The YouTube player remains visible with its built-in controls in Now Playing. YouTube can show its own ads, playback stops when Now Playing closes, and background or audio-only playback is not provided. These are constraints of the embedded player and its terms, so Tunly is a music discovery/player MVP rather than an ad-free background streaming service.
 
@@ -104,4 +104,4 @@ web/                   PWA entry page, manifest, and app icon
 
 ## Music services
 
-Public metadata and lyrics endpoints are centralized in `lib/core/config.dart`. The music source abstraction isolates catalog metadata from providers. Playback uses the visible official YouTube player with a configurable Piped resolver fallback list. Public third-party services can change availability and may impose their own usage policies. YouTube embeds may show YouTube ads; Tunly does not hide or strip them.
+Public metadata and lyrics endpoints are centralized in `lib/core/config.dart`. The music source abstraction isolates catalog metadata from providers. Playback directly uses `youtube_player_iframe` so Tunly can coordinate queue changes, resolution fallback, video state and synced lyrics with the official embedded player. `youtube_player_flutter` is a higher-level wrapper over that same IFrame API; the direct controller is a better fit for these custom controls. Public third-party services can change availability and may impose their own usage policies. YouTube embeds may show YouTube ads; Tunly does not hide or strip them.

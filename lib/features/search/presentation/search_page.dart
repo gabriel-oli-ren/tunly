@@ -10,7 +10,8 @@ import '../../player/presentation/now_playing_sheet.dart';
 import '../../library/data/library_providers.dart';
 
 class SearchPage extends ConsumerStatefulWidget {
-  const SearchPage({super.key});
+  const SearchPage({this.initialQuery, super.key});
+  final String? initialQuery;
   @override
   ConsumerState<SearchPage> createState() => _SearchPageState();
 }
@@ -19,6 +20,19 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   final _controller = TextEditingController();
   Timer? _debounce;
   String _searchTerm = '';
+
+  @override
+  void initState() {
+    super.initState();
+    final initialQuery = widget.initialQuery?.trim() ?? '';
+    if (initialQuery.isNotEmpty) {
+      _controller.text = initialQuery;
+      _searchTerm = initialQuery;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && initialQuery.length >= 2) _startSearch(initialQuery);
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -64,7 +78,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
         const CupertinoSliverNavigationBar(
             largeTitle: Text('Search'), border: null),
         SliverPadding(
-          padding: const EdgeInsets.fromLTRB(18, 12, 18, 112),
+          padding: const EdgeInsets.fromLTRB(18, 12, 18, 174),
           sliver: SliverList.list(children: [
             CupertinoSearchTextField(
               controller: _controller,
