@@ -1,0 +1,25 @@
+workflows:
+  ios-release:
+    name: Tunly iOS release
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+    scripts:
+      - name: Generate the iOS runner
+        script: flutter create --platforms=ios .
+      - name: Resolve Flutter packages
+        script: flutter pub get
+      - name: Build unsigned iOS app
+        script: flutter build ios --release --no-codesign
+      - name: Package unsigned IPA for sideload signing
+        script: |
+          mkdir -p build/ios/ipa/Payload
+          cp -R build/ios/iphoneos/Runner.app build/ios/ipa/Payload/Runner.app
+          cd build/ios/ipa
+          zip -qr Tunly.ipa Payload
+    artifacts:
+      - build/ios/ipa/Tunly.ipa
+      - build/ios/iphoneos/Runner.app

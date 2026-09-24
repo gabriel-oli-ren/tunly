@@ -1,0 +1,341 @@
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart' show Material, ReorderableListView;
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../app/theme.dart';
+import '../../music/presentation/track_widgets.dart';
+import '../../music/domain/track.dart';
+import '../../player/presentation/now_playing_sheet.dart';
+import '../data/library_providers.dart';
+import '../data/local_library.dart';
+
+class LibraryPage extends ConsumerWidget {
+  const LibraryPage({super.key});
+
+  Future<void> _createPlaylist(BuildContext context, WidgetRef ref) async {
+    final controller = TextEditingController();
+    final name = await showCupertinoDialog<String>(
+      context: context,
+      builder: (dialogContext) => CupertinoAlertDialog(
+        title: const Text('New playlist'),
+        content: Padding(
+          padding: const EdgeInsets.only(top: 14),
+          child: CupertinoTextField(
+              controller: controller,
+              placeholder: 'Playlist name',
+              autofocus: true),
+        ),
+        actions: [
+          CupertinoDialogAction(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel')),
+          CupertinoDialogAction(
+              onPressed: () => Navigator.pop(dialogContext, controller.text),
+              child: const Text('Create')),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (name == null || name.trim().isEmpty) return;
+    await ref.read(localLibraryProvider).createPlaylist(name);
+    ref.invalidate(localPlaylistsProvider);
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final liked = ref.watch(likedTracksProvider);
+    final history = ref.watch(listeningHistoryProvider);
+    final playlists = ref.watch(localPlaylistsProvider);
+    return CustomScrollView(
+      physics: const BouncingScrollPhysics(),
+      slivers: [
+        const CupertinoSliverNavigationBar(
+            largeTitle: Text('Your Library'), border: null),
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(18, 14, 18, 112),
+          sliver: SliverList.list(children: [
+            CupertinoButton.filled(
+              onPressed: () => _createPlaylist(context, ref),
+              borderRadius: BorderRadius.circular(16),
+              child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(CupertinoIcons.add),
+                    SizedBox(width: 8),
+                    Text('Create a playlist')
+                  ]),
+            ),
+            const SizedBox(height: 26),
+            const _SectionTitle('Your collection'),
+            liked.when(
+              loading: () => const Padding(
+                  padding: EdgeInsets.all(20),
+                  child: CupertinoActivityIndicator()),
+              error: (error, stack) => const _EmptyNote(
+                  'Your saved songs are temporarily unavailable.'),
+              data: (tracks) => tracks.isEmpty
+                  ? const _EmptyNote('Songs you like will appear here.')
+                  : Column(
+                      children: tracks
+                          .take(8)
+                          .map((track) => TrackRow(
+                              track: track,
+                              onTap: () => presentTrackPlayer(context, track,
+                                  queue: tracks)))
+                          .toList()),
+            ),
+            const SizedBox(height: 26),
+            const _SectionTitle('Playlists'),
+            playlists.when(
+              loading: () => const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: CupertinoActivityIndicator()),
+              error: (error, stack) => const _EmptyNote(
+                  'Your playlists are temporarily unavailable.'),
+              data: (items) => items.isEmpty
+                  ? const _EmptyNote(
+                      'Create a playlist to collect songs you love.')
+                  : Column(
+                      children: items
+                          .map((playlist) => _PlaylistRow(playlist: playlist))
+                          .toList()),
+            ),
+            const SizedBox(height: 25),
+            const _SectionTitle('Recently played'),
+            history.when(
+              loading: () => const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: CupertinoActivityIndicator()),
+              error: (error, stack) => const _EmptyNote(
+                  'Listening history is temporarily unavailable.'),
+              data: (tracks) => tracks.isEmpty
+                  ? const _EmptyNote('Tracks you open will show up here.')
+                  : Column(
+                      children: tracks
+                          .take(10)
+                          .map((track) => TrackRow(
+                              track: track,
+                              onTap: () => presentTrackPlayer(context, track,
+                                  queue: tracks)))
+                          .toList()),
+            ),
+            const SizedBox(height: 14),
+            const Text('Your library stays on this device.',
+                style:
+                    TextStyle(color: TunlyTheme.secondaryText, fontSize: 12)),
+          ]),
+        ),
+      ],
+    );
+  }
+}
+
+class _SectionTitle extends StatelessWidget {
+  const _SectionTitle(this.title);
+  final String title;
+  @override
+  Widget build(BuildContext context) => Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Text(title,
+          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700)));
+}
+
+class _EmptyNote extends StatelessWidget {
+  const _EmptyNote(this.text);
+  final String text;
+  @override
+  Widget build(BuildContext context) => Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Text(text,
+          style:
+              const TextStyle(color: TunlyTheme.secondaryText, fontSize: 14)));
+}
+
+class _PlaylistRow extends ConsumerWidget {
+  const _PlaylistRow({required this.playlist});
+  final LocalPlaylist playlist;
+
+  Future<void> _showActions(BuildContext context, WidgetRef ref) async {
+    final choice = await showCupertinoModalPopup<String>(
+      context: context,
+      builder: (context) => CupertinoActionSheet(
+        title: Text(playlist.name),
+        actions: [
+          CupertinoActionSheetAction(
+              onPressed: () => Navigator.pop(context, 'rename'),
+              child: const Text('Rename')),
+          CupertinoActionSheetAction(
+              isDestructiveAction: true,
+              onPressed: () => Navigator.pop(context, 'delete'),
+              child: const Text('Delete playlist')),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel')),
+      ),
+    );
+    if (choice == 'delete') {
+      await ref.read(localLibraryProvider).deletePlaylist(playlist.id);
+      ref.invalidate(localPlaylistsProvider);
+    } else if (choice == 'rename' && context.mounted) {
+      final controller = TextEditingController(text: playlist.name);
+      final name = await showCupertinoDialog<String>(
+        context: context,
+        builder: (context) => CupertinoAlertDialog(
+          title: const Text('Rename playlist'),
+          content: Padding(
+              padding: const EdgeInsets.only(top: 14),
+              child:
+                  CupertinoTextField(controller: controller, autofocus: true)),
+          actions: [
+            CupertinoDialogAction(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel')),
+            CupertinoDialogAction(
+                onPressed: () => Navigator.pop(context, controller.text),
+                child: const Text('Save')),
+          ],
+        ),
+      );
+      controller.dispose();
+      if (name != null && name.trim().isNotEmpty) {
+        await ref.read(localLibraryProvider).renamePlaylist(playlist, name);
+        ref.invalidate(localPlaylistsProvider);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: Row(children: [
+          CupertinoButton(
+            padding: EdgeInsets.zero,
+            onPressed: () => showCupertinoModalPopup<void>(
+                context: context,
+                builder: (_) => _PlaylistDetail(playlist: playlist)),
+            child: Row(children: [
+              Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                      color: TunlyTheme.elevated,
+                      borderRadius: BorderRadius.circular(13)),
+                  child: playlist.tracks.isEmpty
+                      ? const Icon(CupertinoIcons.music_note_list,
+                          color: TunlyTheme.accent)
+                      : TrackArtwork(track: playlist.tracks.first, size: 56)),
+              const SizedBox(width: 13),
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(playlist.name,
+                    style: const TextStyle(
+                        fontSize: 15, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 4),
+                Text('${playlist.tracks.length} songs',
+                    style: const TextStyle(
+                        fontSize: 12, color: TunlyTheme.secondaryText))
+              ]),
+            ]),
+          ),
+          const Spacer(),
+          CupertinoButton(
+              padding: const EdgeInsets.all(8),
+              onPressed: () => _showActions(context, ref),
+              child: const Icon(CupertinoIcons.ellipsis,
+                  color: TunlyTheme.secondaryText)),
+        ]),
+      );
+}
+
+class _PlaylistDetail extends ConsumerStatefulWidget {
+  const _PlaylistDetail({required this.playlist});
+  final LocalPlaylist playlist;
+  @override
+  ConsumerState<_PlaylistDetail> createState() => _PlaylistDetailState();
+}
+
+class _PlaylistDetailState extends ConsumerState<_PlaylistDetail> {
+  late List<Track> tracks;
+  @override
+  void initState() {
+    super.initState();
+    tracks = [...widget.playlist.tracks];
+  }
+
+  Future<void> _reorder(int from, int to) async {
+    final item = tracks.removeAt(from);
+    tracks.insert(to, item);
+    setState(() {});
+    final current = LocalPlaylist(
+        id: widget.playlist.id, name: widget.playlist.name, tracks: tracks);
+    await ref.read(localLibraryProvider).reorderPlaylist(current, from, to);
+    ref.invalidate(localPlaylistsProvider);
+  }
+
+  @override
+  Widget build(BuildContext context) => Material(
+        color: const Color(0xFF111216),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        child: SafeArea(
+            child: SizedBox(
+                height: MediaQuery.sizeOf(context).height * .9,
+                child: Column(children: [
+                  Padding(
+                      padding: const EdgeInsets.all(18),
+                      child: Row(children: [
+                        Expanded(
+                            child: Text(widget.playlist.name,
+                                style: const TextStyle(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.w700))),
+                        CupertinoButton(
+                            padding: EdgeInsets.zero,
+                            onPressed: () => Navigator.pop(context),
+                            child: const Icon(CupertinoIcons.xmark_circle_fill))
+                      ])),
+                  if (tracks.isEmpty)
+                    const Expanded(
+                        child: Center(
+                            child: Text('Add songs from Now Playing.',
+                                style: TextStyle(
+                                    color: TunlyTheme.secondaryText))))
+                  else
+                    Expanded(
+                        child: ReorderableListView.builder(
+                      physics: const BouncingScrollPhysics(),
+                      itemCount: tracks.length,
+                      onReorderItem: _reorder,
+                      itemBuilder: (context, index) {
+                        final track = tracks[index];
+                        return Container(
+                          key: ValueKey(track.id),
+                          padding: const EdgeInsets.symmetric(horizontal: 18),
+                          child: Row(children: [
+                            Expanded(
+                                child: TrackRow(
+                                    track: track,
+                                    onTap: () => presentTrackPlayer(
+                                        context, track,
+                                        queue: tracks))),
+                            CupertinoButton(
+                                padding: const EdgeInsets.all(8),
+                                onPressed: () async {
+                                  final current = LocalPlaylist(
+                                      id: widget.playlist.id,
+                                      name: widget.playlist.name,
+                                      tracks: tracks);
+                                  await ref
+                                      .read(localLibraryProvider)
+                                      .removeFromPlaylist(current, track);
+                                  setState(() => tracks.removeAt(index));
+                                  ref.invalidate(localPlaylistsProvider);
+                                },
+                                child: const Icon(CupertinoIcons.minus_circle,
+                                    color: TunlyTheme.secondaryText))
+                          ]),
+                        );
+                      },
+                    )),
+                ]))),
+      );
+}
