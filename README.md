@@ -24,7 +24,7 @@ flutter build web --release
 
 The deployable site is written to `build/web`. Keep the hosting base path in mind: for a project site hosted below a repository path, build with `--base-href /repository-name/`.
 
-The iOS-style Flutter app also runs in Chrome for day-to-day development. Native iOS controls use `cupertino_native`; its library filter, add button, and tab bar fall back to Flutter Cupertino controls in the PWA. A native iOS build must run on macOS with Xcode, which Codemagic provides as a hosted build machine.
+The iOS-style Flutter app also runs in Chrome for day-to-day development. Native iOS controls use `cupertino_native`; its library filter, add button, and tab bar fall back to Flutter Cupertino controls in the PWA. Its current iOS plugin uses CocoaPods, so the Codemagic workflow keeps Flutter's Swift Package Manager migration disabled for this project. A native iOS build must run on macOS with Xcode, which Codemagic provides as a hosted build machine.
 
 The YouTube player remains visible with its built-in controls in Now Playing. YouTube can show its own ads, playback stops when Now Playing closes, and background or audio-only playback is not provided. These are constraints of the embedded player and its terms, so Tunly is a music discovery/player MVP rather than an ad-free background streaming service.
 

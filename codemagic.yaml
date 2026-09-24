@@ -8,6 +8,8 @@ workflows:
       xcode: latest
       cocoapods: default
     scripts:
+      - name: Use CocoaPods for iOS plugins
+        script: flutter config --no-enable-swift-package-manager
       - name: Generate the iOS runner
         script: flutter create --platforms=ios .
       - name: Resolve Flutter packages
