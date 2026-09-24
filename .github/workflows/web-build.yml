@@ -1,0 +1,39 @@
+name: Build Web App
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+jobs:
+  build-web:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: 'stable'
+        channel: 'stable'
+        cache: true
+
+    - name: Install dependencies
+      run: flutter pub get
+
+    - name: Verify Flutter installation
+      run: flutter doctor -v
+
+    - name: Build web app
+      run: flutter build web --release
+
+    - name: Upload web build artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: tunly-web
+        path: build/web
+        retention-days: 7
