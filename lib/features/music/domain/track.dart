@@ -10,6 +10,7 @@ class Track {
     this.storeUrl,
     this.genre,
     this.releaseDate,
+    this.youtubeVideoId,
   });
 
   final String id;
@@ -22,39 +23,57 @@ class Track {
   final Uri? storeUrl;
   final String? genre;
   final DateTime? releaseDate;
+  final String? youtubeVideoId;
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'title': title,
-        'artist': artist,
-        'album': album,
-        'artworkUrl': artworkUrl.toString(),
-        'durationMs': duration.inMilliseconds,
-        'previewUrl': previewUrl?.toString(),
-        'storeUrl': storeUrl?.toString(),
-        'genre': genre,
-        'releaseDate': releaseDate?.toIso8601String(),
-      };
+    'id': id,
+    'title': title,
+    'artist': artist,
+    'album': album,
+    'artworkUrl': artworkUrl.toString(),
+    'durationMs': duration.inMilliseconds,
+    'previewUrl': previewUrl?.toString(),
+    'storeUrl': storeUrl?.toString(),
+    'genre': genre,
+    'releaseDate': releaseDate?.toIso8601String(),
+    'youtubeVideoId': youtubeVideoId,
+  };
 
   factory Track.fromJson(Map<String, dynamic> json) => Track(
-        id: json['id'] as String,
-        title: json['title'] as String,
-        artist: json['artist'] as String,
-        album: json['album'] as String,
-        artworkUrl: Uri.parse(json['artworkUrl'] as String),
-        duration:
-            Duration(milliseconds: (json['durationMs'] as num?)?.toInt() ?? 0),
-        previewUrl: json['previewUrl'] is String
-            ? Uri.tryParse(json['previewUrl'] as String)
-            : null,
-        storeUrl: json['storeUrl'] is String
-            ? Uri.tryParse(json['storeUrl'] as String)
-            : null,
-        genre: json['genre'] as String?,
-        releaseDate: json['releaseDate'] is String
-            ? DateTime.tryParse(json['releaseDate'] as String)
-            : null,
-      );
+    id: json['id'] as String,
+    title: json['title'] as String,
+    artist: json['artist'] as String,
+    album: json['album'] as String,
+    artworkUrl: Uri.parse(json['artworkUrl'] as String),
+    duration: Duration(
+      milliseconds: (json['durationMs'] as num?)?.toInt() ?? 0,
+    ),
+    previewUrl: json['previewUrl'] is String
+        ? Uri.tryParse(json['previewUrl'] as String)
+        : null,
+    storeUrl: json['storeUrl'] is String
+        ? Uri.tryParse(json['storeUrl'] as String)
+        : null,
+    genre: json['genre'] as String?,
+    releaseDate: json['releaseDate'] is String
+        ? DateTime.tryParse(json['releaseDate'] as String)
+        : null,
+    youtubeVideoId: json['youtubeVideoId'] as String?,
+  );
+
+  Track withYoutubeVideoId(String videoId) => Track(
+    id: id,
+    title: title,
+    artist: artist,
+    album: album,
+    artworkUrl: artworkUrl,
+    duration: duration,
+    previewUrl: previewUrl,
+    storeUrl: storeUrl,
+    genre: genre,
+    releaseDate: releaseDate,
+    youtubeVideoId: videoId,
+  );
 }
 
 class Artist {
@@ -65,11 +84,12 @@ class Artist {
 }
 
 class Album {
-  const Album(
-      {required this.id,
-      required this.title,
-      required this.artist,
-      this.artworkUrl});
+  const Album({
+    required this.id,
+    required this.title,
+    required this.artist,
+    this.artworkUrl,
+  });
   final String id;
   final String title;
   final String artist;
@@ -77,8 +97,11 @@ class Album {
 }
 
 class MusicPlaylist {
-  const MusicPlaylist(
-      {required this.id, required this.title, this.description});
+  const MusicPlaylist({
+    required this.id,
+    required this.title,
+    this.description,
+  });
   final String id;
   final String title;
   final String? description;

@@ -1,12 +1,11 @@
 import 'dart:ui';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:cupertino_native/cupertino_native.dart';
 
 import '../../../app/theme.dart';
-import '../../../core/presentation/native_cupertino_controls.dart';
 import '../../home/presentation/home_page.dart';
 import '../../library/data/library_providers.dart';
 import '../../library/presentation/library_page.dart';
@@ -56,136 +55,16 @@ class AppShell extends ConsumerWidget {
                     _MiniPlayer(track: lastTrack),
                     const SizedBox(height: 8),
                   ],
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(27),
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-                      child: usesNativeCupertino
-                          ? CNTabBar(
-                              items: const [
-                                CNTabBarItem(
-                                  label: 'Home',
-                                  icon: CNSymbol('house.fill'),
-                                ),
-                                CNTabBarItem(
-                                  label: 'Search',
-                                  icon: CNSymbol('magnifyingglass'),
-                                ),
-                                CNTabBarItem(
-                                  label: 'Library',
-                                  icon: CNSymbol('music.note.list'),
-                                ),
-                              ],
-                              currentIndex: _index,
-                              onTap: (index) => context.go(switch (index) {
-                                1 => '/search',
-                                2 => '/library',
-                                _ => '/home',
-                              }),
-                              tint: const Color(0xFFF7F8FC),
-                              backgroundColor: const Color(0x00000000),
-                              height: 57,
-                              shrinkCentered: false,
-                            )
-                          : Container(
-                              height: 67,
-                              decoration: BoxDecoration(
-                                color: const Color(0xD916203A),
-                                border: Border.all(
-                                  color: const Color(0x20FFFFFF),
-                                ),
-                                borderRadius: BorderRadius.circular(27),
-                              ),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
-                                vertical: 5,
-                              ),
-                              child: Row(
-                                children:
-                                    [
-                                          const _NavItem(
-                                            index: 0,
-                                            label: 'Home',
-                                            icon: CupertinoIcons.house_fill,
-                                          ),
-                                          const _NavItem(
-                                            index: 1,
-                                            label: 'Search',
-                                            icon: CupertinoIcons.search,
-                                          ),
-                                          const _NavItem(
-                                            index: 2,
-                                            label: 'Library',
-                                            icon:
-                                                CupertinoIcons.music_note_list,
-                                          ),
-                                        ]
-                                        .map(
-                                          (item) => Expanded(
-                                            child: CupertinoButton(
-                                              padding: EdgeInsets.zero,
-                                              onPressed: () => context.go(
-                                                switch (item.index) {
-                                                  1 => '/search',
-                                                  2 => '/library',
-                                                  _ => '/home',
-                                                },
-                                              ),
-                                              child: AnimatedContainer(
-                                                duration: const Duration(
-                                                  milliseconds: 180,
-                                                ),
-                                                curve: Curves.easeOut,
-                                                decoration: BoxDecoration(
-                                                  color: item.index == _index
-                                                      ? const Color(0xFF29365A)
-                                                      : const Color(0x00000000),
-                                                  borderRadius:
-                                                      BorderRadius.circular(23),
-                                                ),
-                                                child: Column(
-                                                  mainAxisAlignment:
-                                                      MainAxisAlignment.center,
-                                                  children: [
-                                                    Icon(
-                                                      item.icon,
-                                                      size: 20,
-                                                      color:
-                                                          item.index == _index
-                                                          ? const Color(
-                                                              0xFFF7F8FC,
-                                                            )
-                                                          : TunlyTheme
-                                                                .secondaryText,
-                                                    ),
-                                                    const SizedBox(height: 3),
-                                                    Text(
-                                                      item.label,
-                                                      style: TextStyle(
-                                                        fontSize: 10,
-                                                        fontWeight:
-                                                            item.index == _index
-                                                            ? FontWeight.w600
-                                                            : FontWeight.w400,
-                                                        color:
-                                                            item.index == _index
-                                                            ? const Color(
-                                                                0xFFF7F8FC,
-                                                              )
-                                                            : TunlyTheme
-                                                                  .secondaryText,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                        )
-                                        .toList(),
-                              ),
-                            ),
-                    ),
+                  _LiquidGlassTabBar(
+                    currentIndex: _index,
+                    onSelect: (index) {
+                      HapticFeedback.selectionClick();
+                      context.go(switch (index) {
+                        1 => '/search',
+                        2 => '/library',
+                        _ => '/home',
+                      });
+                    },
                   ),
                 ],
               ),
@@ -197,15 +76,141 @@ class AppShell extends ConsumerWidget {
   }
 }
 
-class _NavItem {
-  const _NavItem({
-    required this.index,
-    required this.label,
-    required this.icon,
+class _LiquidGlassTabBar extends StatelessWidget {
+  const _LiquidGlassTabBar({
+    required this.currentIndex,
+    required this.onSelect,
   });
-  final int index;
-  final String label;
-  final IconData icon;
+
+  final int currentIndex;
+  final ValueChanged<int> onSelect;
+
+  static const _items = <(String, IconData)>[
+    ('Home', CupertinoIcons.house_fill),
+    ('Search', CupertinoIcons.search),
+    ('Your Library', CupertinoIcons.music_note_list),
+  ];
+
+  @override
+  Widget build(BuildContext context) => ClipRRect(
+    borderRadius: BorderRadius.circular(34),
+    child: BackdropFilter(
+      filter: ImageFilter.blur(sigmaX: 28, sigmaY: 28),
+      child: Container(
+        height: 82,
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xF21D2028), Color(0xF20C0D12)],
+          ),
+          borderRadius: BorderRadius.circular(34),
+          border: Border.all(color: const Color(0x36FFFFFF), width: 1.2),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x55000000),
+              blurRadius: 26,
+              offset: Offset(0, 9),
+            ),
+            BoxShadow(
+              color: Color(0x1AFFFFFF),
+              blurRadius: 1,
+              offset: Offset(0, -1),
+            ),
+          ],
+        ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final segmentWidth = (constraints.maxWidth - 12) / 3;
+            return Stack(
+              children: [
+                AnimatedPositioned(
+                  duration: const Duration(milliseconds: 360),
+                  curve: Curves.easeOutCubic,
+                  left: 6 + segmentWidth * currentIndex,
+                  top: 6,
+                  bottom: 6,
+                  width: segmentWidth,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: const Color(0xF5080A10),
+                      borderRadius: BorderRadius.circular(28),
+                      border: Border.all(color: const Color(0x12FFFFFF)),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x18000000),
+                          blurRadius: 12,
+                          offset: Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                Row(
+                  children: List.generate(_items.length, (index) {
+                    final item = _items[index];
+                    final selected = currentIndex == index;
+                    final color = selected
+                        ? const Color(0xFF3982FF)
+                        : const Color(0xFFE9EAF0);
+                    return Expanded(
+                      child: CupertinoButton(
+                        padding: EdgeInsets.zero,
+                        minimumSize: Size.zero,
+                        onPressed: () => onSelect(index),
+                        child: AnimatedDefaultTextStyle(
+                          duration: const Duration(milliseconds: 180),
+                          curve: Curves.easeOut,
+                          style: TextStyle(
+                            color: color,
+                            fontSize: 12,
+                            fontWeight: selected
+                                ? FontWeight.w600
+                                : FontWeight.w500,
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              AnimatedScale(
+                                scale: selected ? 1.08 : 1,
+                                duration: const Duration(milliseconds: 220),
+                                curve: Curves.easeOutBack,
+                                child: Icon(item.$2, size: 26, color: color),
+                              ),
+                              const SizedBox(height: 3),
+                              Text(item.$1),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
+                ),
+                IgnorePointer(
+                  child: Align(
+                    alignment: Alignment.topCenter,
+                    child: Container(
+                      height: 1,
+                      margin: const EdgeInsets.symmetric(horizontal: 28),
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            Color(0x00FFFFFF),
+                            Color(0x66FFFFFF),
+                            Color(0x00FFFFFF),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    ),
+  );
 }
 
 class _MiniPlayer extends StatelessWidget {

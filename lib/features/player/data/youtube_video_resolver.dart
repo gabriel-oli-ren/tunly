@@ -11,23 +11,41 @@ import 'video_match.dart';
 class YoutubeVideoResolver {
   YoutubeVideoResolver(this._client);
   final http.Client _client;
+  final Map<String, ({DateTime expires, List<Track> tracks})> _trendCache = {};
 
-  Future<List<VideoMatch>> resolve(Track track) async {
+  Future<List<VideoMatch>> resolve(
+    Track track, {
+    void Function()? onFallback,
+  }) async {
+    final directId = track.youtubeVideoId;
+    if (directId != null && RegExp(r'^[\w-]{11}$').hasMatch(directId)) {
+      return [
+        VideoMatch(
+          videoId: directId,
+          title: track.title,
+          channel: track.artist,
+          duration: track.duration,
+        ),
+      ];
+    }
     final query = '${track.artist} ${track.title} official audio';
     Object? lastError;
 
-    for (final instance in TunlyConfig.pipedInstances) {
+    for (var index = 0; index < TunlyConfig.pipedInstances.length; index++) {
+      if (index > 0) onFallback?.call();
+      final instance = TunlyConfig.pipedInstances[index];
       try {
-        final uri = Uri.parse('$instance/search').replace(queryParameters: {
-          'q': query,
-          'filter': 'videos',
-        });
-        final response = await _client.get(uri, headers: const {
-          'accept': 'application/json'
-        }).timeout(const Duration(seconds: 7));
+        final uri = Uri.parse(
+          '$instance/search',
+        ).replace(queryParameters: {'q': query, 'filter': 'videos'});
+        final response = await _client
+            .get(uri, headers: const {'accept': 'application/json'})
+            .timeout(const Duration(seconds: 5));
         if (response.statusCode != 200) {
           throw http.ClientException(
-              'Search source returned ${response.statusCode}', uri);
+            'Search source returned ${response.statusCode}',
+            uri,
+          );
         }
         final body = jsonDecode(utf8.decode(response.bodyBytes));
         if (body is! Map<String, dynamic> || body['items'] is! List) {
@@ -38,7 +56,9 @@ class YoutubeVideoResolver {
             .map((item) => _parse(item))
             .whereType<VideoMatch>()
             .toList(growable: false);
-        return _rank(track, matches).take(5).toList(growable: false);
+        final ranked = _rank(track, matches).take(5).toList(growable: false);
+        if (ranked.isNotEmpty) return ranked;
+        lastError = StateError('No close video match at $instance');
       } catch (error) {
         lastError = error;
       }
@@ -46,13 +66,116 @@ class YoutubeVideoResolver {
     throw StateError('All video search sources are unavailable: $lastError');
   }
 
+  /// Matches regional YouTube charts to iTunes song metadata so the feed only
+  /// promotes music while playing the exact video currently trending there.
+  Future<List<Track>> trendingTracks({
+    required String country,
+    required List<Track> regionalSongs,
+  }) async {
+    final key = country.toUpperCase();
+    final cached = _trendCache[key];
+    if (cached != null && cached.expires.isAfter(DateTime.now())) {
+      return cached.tracks;
+    }
+    Object? lastError;
+    for (final instance in TunlyConfig.pipedInstances) {
+      try {
+        final uri = Uri.parse(
+          '$instance/trending',
+        ).replace(queryParameters: {'region': key});
+        final response = await _client
+            .get(uri, headers: const {'accept': 'application/json'})
+            .timeout(const Duration(seconds: 5));
+        if (response.statusCode != 200) {
+          throw http.ClientException(
+            'Trending source returned ${response.statusCode}',
+            uri,
+          );
+        }
+        final body = jsonDecode(utf8.decode(response.bodyBytes));
+        if (body is! List) {
+          throw const FormatException('Unexpected trending response');
+        }
+        final videos = body.whereType<Map<String, dynamic>>().toList();
+        final matched = <Track>[];
+        final usedTracks = <String>{};
+        for (final video in videos) {
+          final videoId = _videoId(video['url']);
+          final title = video['title'];
+          final thumbnail = video['thumbnail'];
+          final durationSeconds = (video['duration'] as num?)?.toInt() ?? 0;
+          if (videoId == null ||
+              title is! String ||
+              thumbnail is! String ||
+              durationSeconds < 45 ||
+              durationSeconds > 900 ||
+              video['isShort'] == true) {
+            continue;
+          }
+          final channel = video['uploaderName'] as String? ?? '';
+          final candidateTokens = _tokens('$title $channel');
+          Track? best;
+          var bestScore = 0.0;
+          for (final song in regionalSongs) {
+            if (usedTracks.contains(song.id)) continue;
+            final titleTokens = _tokens(song.title);
+            final artistTokens = _tokens(song.artist);
+            final titleMatch = _coverage(titleTokens, candidateTokens);
+            final artistMatch = _coverage(artistTokens, candidateTokens);
+            if (titleMatch < .5 || artistMatch < .25) continue;
+            final score = titleMatch * 2 + artistMatch;
+            if (score > bestScore) {
+              best = song;
+              bestScore = score;
+            }
+          }
+          if (best == null) continue;
+          usedTracks.add(best.id);
+          matched.add(best.withYoutubeVideoId(videoId));
+          if (matched.length == 12) break;
+        }
+        final result = List<Track>.unmodifiable(matched);
+        _trendCache[key] = (
+          expires: DateTime.now().add(const Duration(minutes: 8)),
+          tracks: result,
+        );
+        return result;
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    throw StateError('Regional YouTube charts are unavailable: $lastError');
+  }
+
+  String? _videoId(Object? value) {
+    if (value is! String) return null;
+    final raw = value.trim();
+    if (RegExp(r'^[\w-]{11}$').hasMatch(raw)) return raw;
+    final uri = Uri.tryParse(
+      raw.startsWith('/') ? 'https://www.youtube.com$raw' : raw,
+    );
+    final host = uri?.host.toLowerCase();
+    final segments = uri?.pathSegments ?? const <String>[];
+    final id = host == 'youtu.be'
+        ? (segments.isEmpty ? null : segments.first)
+        : uri?.queryParameters['v'] ??
+              (segments.length >= 2 &&
+                      {'embed', 'shorts', 'live'}.contains(segments.first)
+                  ? segments[1]
+                  : null);
+    return id != null && RegExp(r'^[\w-]{11}$').hasMatch(id) ? id : null;
+  }
+
+  double _coverage(Set<String> expected, Set<String> actual) => expected.isEmpty
+      ? 0
+      : expected.where(actual.contains).length / expected.length;
+
   VideoMatch? _parse(Map<String, dynamic> item) {
     final title = item['title'];
     final uploader = item['uploaderName'];
     final url = item['url'];
     if (title is! String || url is! String) return null;
-    final parsed = Uri.tryParse(url);
-    final videoId = parsed?.queryParameters['v'];
+    final videoId = _videoId(url);
     if (videoId == null || !RegExp(r'^[\w-]{11}$').hasMatch(videoId)) {
       return null;
     }
@@ -119,6 +242,6 @@ class YoutubeVideoResolver {
     'lyrics',
     'topic',
     'hd',
-    'hq'
+    'hq',
   };
 }

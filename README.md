@@ -28,6 +28,8 @@ The iOS-style Flutter app also runs in Chrome for day-to-day development. Native
 
 The YouTube player remains visible with its built-in controls in Now Playing. YouTube can show its own ads, playback stops when Now Playing closes, and background or audio-only playback is not provided. These are constraints of the embedded player and its terms, so Tunly is a music discovery/player MVP rather than an ad-free background streaming service.
 
+The Tunly app icon is generated from `assets/branding/tunly-icon-1024.png`. The web PWA uses dedicated 180, 192 and 512 pixel icons (including a maskable icon); the iOS asset catalog includes the required iPhone and iPad icon sizes for the Codemagic IPA build.
+
 ## Test on iPhone
 
 ### Quick Safari check on your local network
@@ -52,6 +54,8 @@ This checks layout and touch behavior. It does not install the app or fully repr
 4. Tap a song and then Play in the visible YouTube player; iOS requires that user gesture to begin audio.
 
 HTTPS is required for a real installable PWA. iOS may suspend background audio depending on the iOS version and Safari lifecycle. The web manifest requests standalone display and the page includes iOS status bar, app title, and safe-area viewport settings.
+
+Tap the gear on Home to pick a country or opt in to location. Location is requested only after tapping **Use my location**; Tunly uses it once to determine the country and saves only that country. PWA geolocation requires an HTTPS deployment (or localhost during development). Regional YouTube trends are matched against that country's iTunes song chart; if a public Piped instance is unavailable, Tunly shows the country chart instead.
 
 ## Deploy the PWA
 
@@ -104,4 +108,4 @@ web/                   PWA entry page, manifest, and app icon
 
 ## Music services
 
-Public metadata and lyrics endpoints are centralized in `lib/core/config.dart`. The music source abstraction isolates catalog metadata from providers. Playback directly uses `youtube_player_iframe` so Tunly can coordinate queue changes, resolution fallback, video state and synced lyrics with the official embedded player. `youtube_player_flutter` is a higher-level wrapper over that same IFrame API; the direct controller is a better fit for these custom controls. Public third-party services can change availability and may impose their own usage policies. YouTube embeds may show YouTube ads; Tunly does not hide or strip them.
+Public metadata and lyrics endpoints are centralized in `lib/core/config.dart`. The music source abstraction isolates catalog metadata from providers. Playback directly uses `youtube_player_iframe` so Tunly can coordinate queue changes, resolution fallback, video state and synced lyrics with the official embedded player. `youtube_player_flutter` is a higher-level wrapper over that same IFrame API; the direct controller is a better fit for these custom controls. Regional YouTube trend videos come from public Piped instances and are matched to iTunes song metadata before display. Public third-party services can change availability and may impose their own usage policies. YouTube embeds may show YouTube ads; Tunly does not hide or strip them.

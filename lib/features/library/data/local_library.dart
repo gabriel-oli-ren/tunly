@@ -5,16 +5,19 @@ import 'package:hive_flutter/hive_flutter.dart';
 import '../../music/domain/track.dart';
 
 class LocalPlaylist {
-  const LocalPlaylist(
-      {required this.id, required this.name, required this.tracks});
+  const LocalPlaylist({
+    required this.id,
+    required this.name,
+    required this.tracks,
+  });
   final String id;
   final String name;
   final List<Track> tracks;
 
   Map<String, dynamic> toJson() => {
-        'name': name,
-        'tracks': tracks.map((track) => track.toJson()).toList(),
-      };
+    'name': name,
+    'tracks': tracks.map((track) => track.toJson()).toList(),
+  };
 
   factory LocalPlaylist.fromEntry(String id, String raw) {
     final json = jsonDecode(raw) as Map<String, dynamic>;
@@ -23,7 +26,10 @@ class LocalPlaylist {
         .map(Track.fromJson)
         .toList(growable: false);
     return LocalPlaylist(
-        id: id, name: json['name'] as String? ?? 'Playlist', tracks: tracks);
+      id: id,
+      name: json['name'] as String? ?? 'Playlist',
+      tracks: tracks,
+    );
   }
 }
 
@@ -47,7 +53,7 @@ class LocalLibrary {
     final current = await recentSearches();
     final updated = [
       query,
-      ...current.where((item) => item.toLowerCase() != query.toLowerCase())
+      ...current.where((item) => item.toLowerCase() != query.toLowerCase()),
     ].take(8).toList();
     await _box.put('recent_searches', jsonEncode(updated));
   }
@@ -66,24 +72,30 @@ class LocalLibrary {
   Future<void> recordListen(Track track) async {
     final key = 'history:${DateTime.now().microsecondsSinceEpoch}';
     await _box.put(key, jsonEncode(track.toJson()));
-    final keys = _box.keys
-        .whereType<String>()
-        .where((key) => key.startsWith('history:'))
-        .toList()
-      ..sort();
-    for (final oldKey in keys.take(keys.length - 100)) {
-      await _box.delete(oldKey);
+    final keys =
+        _box.keys
+            .whereType<String>()
+            .where((key) => key.startsWith('history:'))
+            .toList()
+          ..sort();
+    if (keys.length > 100) {
+      for (final oldKey in keys.take(keys.length - 100)) {
+        await _box.delete(oldKey);
+      }
     }
   }
 
   Future<List<LocalPlaylist>> playlists() async {
-    final entries = _box
-        .toMap()
-        .entries
-        .where(
-            (entry) => entry.key is String && entry.key.startsWith('playlist:'))
-        .toList()
-      ..sort((a, b) => (a.value).compareTo(b.value));
+    final entries =
+        _box
+            .toMap()
+            .entries
+            .where(
+              (entry) =>
+                  entry.key is String && entry.key.startsWith('playlist:'),
+            )
+            .toList()
+          ..sort((a, b) => (a.value).compareTo(b.value));
     return entries
         .map((entry) => LocalPlaylist.fromEntry(entry.key, entry.value))
         .toList(growable: false);
@@ -97,26 +109,34 @@ class LocalLibrary {
   }
 
   Future<void> renamePlaylist(LocalPlaylist playlist, String name) =>
-      _savePlaylist(LocalPlaylist(
-          id: playlist.id, name: name.trim(), tracks: playlist.tracks));
+      _savePlaylist(
+        LocalPlaylist(
+          id: playlist.id,
+          name: name.trim(),
+          tracks: playlist.tracks,
+        ),
+      );
 
   Future<void> deletePlaylist(String id) => _box.delete('playlist:$id');
 
   Future<void> addToPlaylist(LocalPlaylist playlist, Track track) async {
     if (playlist.tracks.any((item) => item.id == track.id)) return;
-    await _savePlaylist(LocalPlaylist(
+    await _savePlaylist(
+      LocalPlaylist(
         id: playlist.id,
         name: playlist.name,
-        tracks: [...playlist.tracks, track]));
+        tracks: [...playlist.tracks, track],
+      ),
+    );
   }
 
   Future<void> removeFromPlaylist(LocalPlaylist playlist, Track track) =>
       _savePlaylist(
         LocalPlaylist(
-            id: playlist.id,
-            name: playlist.name,
-            tracks:
-                playlist.tracks.where((item) => item.id != track.id).toList()),
+          id: playlist.id,
+          name: playlist.name,
+          tracks: playlist.tracks.where((item) => item.id != track.id).toList(),
+        ),
       );
 
   Future<void> reorderPlaylist(LocalPlaylist playlist, int from, int to) async {
@@ -124,7 +144,8 @@ class LocalLibrary {
     final track = tracks.removeAt(from);
     tracks.insert(to, track);
     await _savePlaylist(
-        LocalPlaylist(id: playlist.id, name: playlist.name, tracks: tracks));
+      LocalPlaylist(id: playlist.id, name: playlist.name, tracks: tracks),
+    );
   }
 
   Future<String?> cachedLyrics(String trackId) async =>
@@ -132,19 +153,29 @@ class LocalLibrary {
   Future<void> cacheLyrics(String trackId, String json) =>
       _box.put('lyrics:$trackId', json);
 
+  String? setting(String key) => _box.get('setting:$key');
+
+  Future<void> setSetting(String key, String value) =>
+      _box.put('setting:$key', value);
+
   Future<void> _savePlaylist(LocalPlaylist playlist) =>
       _box.put('playlist:${playlist.id}', jsonEncode(playlist.toJson()));
 
   Future<List<Track>> _tracks(String prefix) async {
-    final entries = _box
-        .toMap()
-        .entries
-        .where((entry) => entry.key is String && entry.key.startsWith(prefix))
-        .toList()
-      ..sort((a, b) => a.key.compareTo(b.key));
+    final entries =
+        _box
+            .toMap()
+            .entries
+            .where(
+              (entry) => entry.key is String && entry.key.startsWith(prefix),
+            )
+            .toList()
+          ..sort((a, b) => a.key.compareTo(b.key));
     return entries.reversed
-        .map((entry) =>
-            Track.fromJson(jsonDecode(entry.value) as Map<String, dynamic>))
+        .map(
+          (entry) =>
+              Track.fromJson(jsonDecode(entry.value) as Map<String, dynamic>),
+        )
         .toList(growable: false);
   }
 }

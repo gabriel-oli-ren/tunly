@@ -62,6 +62,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
       physics: const BouncingScrollPhysics(),
       slivers: [
         CupertinoSliverNavigationBar(
+          transitionBetweenRoutes: false,
           largeTitle: const Text('Your Library'),
           border: null,
           trailing: TunlyAddButton(
@@ -69,7 +70,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
           ),
         ),
         SliverPadding(
-          padding: const EdgeInsets.fromLTRB(18, 14, 18, 174),
+          padding: const EdgeInsets.fromLTRB(18, 14, 18, 210),
           sliver: SliverList.list(
             children: [
               TunlySegmentedControl(
