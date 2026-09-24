@@ -54,6 +54,8 @@ class _NowPlayingSheetState extends ConsumerState<_NowPlayingSheet> {
   Timer? _sleepTimer;
   bool _shuffle = false;
   bool _repeatCurrent = false;
+  final Set<String> _failedVideoIds = <String>{};
+  bool _searchedForFallback = false;
   String? _sleepLabel;
   PlayerState _playerState = PlayerState.unknown;
   Track get _track => widget.queue[_queueIndex];
@@ -78,6 +80,8 @@ class _NowPlayingSheetState extends ConsumerState<_NowPlayingSheet> {
 
   Future<void> _resolveTrack() async {
     if (!mounted) return;
+    _failedVideoIds.clear();
+    _searchedForFallback = false;
     setState(() {
       _loading = true;
       _tryingAnotherSource = false;
@@ -127,7 +131,8 @@ class _NowPlayingSheetState extends ConsumerState<_NowPlayingSheet> {
       setState(() {
         _loading = false;
         _tryingAnotherSource = false;
-        _message = 'Trying another source…';
+        _message =
+            'Couldn’t find a playable YouTube video. Check your connection and try again.';
       });
     }
   }
@@ -136,8 +141,36 @@ class _NowPlayingSheetState extends ConsumerState<_NowPlayingSheet> {
     final controller = _controller;
     if (controller == null) return;
     _playerSubscription = controller.listen((value) {
+      if (value.hasError && mounted) {
+        final metadataId = value.metaData.videoId;
+        final metadataIndex = _matches.indexWhere(
+          (match) => match.videoId == metadataId,
+        );
+        final failedIndex = metadataIndex >= 0 ? metadataIndex : _matchIndex;
+        final failedId = metadataId.isNotEmpty
+            ? metadataId
+            : failedIndex < _matches.length
+            ? _matches[failedIndex].videoId
+            : null;
+        if (failedId != null && _failedVideoIds.add(failedId)) {
+          if (failedIndex + 1 < _matches.length) {
+            unawaited(_loadMatch(failedIndex + 1));
+          } else if (!_searchedForFallback) {
+            unawaited(_searchAlternativeVideos());
+          } else {
+            setState(() {
+              _tryingAnotherSource = false;
+              _message =
+                  'YouTube couldn’t play this video. Try another song or check your connection.';
+            });
+          }
+        }
+      }
       if (value.playerState != _playerState && mounted) {
         setState(() => _playerState = value.playerState);
+      }
+      if (value.playerState == PlayerState.playing) {
+        if (_message != null && mounted) setState(() => _message = null);
       }
       if (value.playerState == PlayerState.ended && mounted) {
         if (_repeatCurrent) {
@@ -147,6 +180,45 @@ class _NowPlayingSheetState extends ConsumerState<_NowPlayingSheet> {
         }
       }
     });
+  }
+
+  Future<void> _searchAlternativeVideos() async {
+    _searchedForFallback = true;
+    if (mounted) {
+      setState(() {
+        _tryingAnotherSource = true;
+        _message = null;
+      });
+    }
+    try {
+      final alternatives = await ref
+          .read(youtubeVideoResolverProvider)
+          .resolve(_track, ignoreDirectVideoId: true);
+      if (!mounted) return;
+      final playableCandidates = alternatives
+          .where((match) => !_failedVideoIds.contains(match.videoId))
+          .toList(growable: false);
+      if (playableCandidates.isEmpty) {
+        setState(() {
+          _tryingAnotherSource = false;
+          _message =
+              'YouTube couldn’t play this video. Try another song or check your connection.';
+        });
+        return;
+      }
+      final nextIndex = _matches.length;
+      setState(() {
+        _matches = [..._matches, ...playableCandidates];
+      });
+      await _loadMatch(nextIndex);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _tryingAnotherSource = false;
+        _message =
+            'Couldn’t find a playable YouTube video. Check your connection and try again.';
+      });
+    }
   }
 
   Future<void> _playNext() async {
@@ -187,6 +259,8 @@ class _NowPlayingSheetState extends ConsumerState<_NowPlayingSheet> {
       _queueIndex = nextIndex;
       _matches = matches;
       _matchIndex = 0;
+      _failedVideoIds.clear();
+      _searchedForFallback = false;
       _message = null;
       _showLyrics = false;
       _prefetchedQueueIndex = null;
@@ -241,6 +315,8 @@ class _NowPlayingSheetState extends ConsumerState<_NowPlayingSheet> {
     setState(() {
       _matches = matches;
       _matchIndex = 0;
+      _failedVideoIds.clear();
+      _searchedForFallback = false;
       _loading = false;
       _message = null;
     });
@@ -341,6 +417,7 @@ class _NowPlayingSheetState extends ConsumerState<_NowPlayingSheet> {
     setState(() {
       _matchIndex = index;
       _tryingAnotherSource = true;
+      _message = null;
     });
     try {
       await controller.loadVideoById(videoId: _matches[index].videoId);

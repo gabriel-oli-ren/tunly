@@ -102,7 +102,7 @@ class _LiquidGlassTabBar extends StatelessWidget {
           gradient: const LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [Color(0xF21D2028), Color(0xF20C0D12)],
+            colors: [Color(0xB51D2638), Color(0x9820263A)],
           ),
           borderRadius: BorderRadius.circular(34),
           border: Border.all(color: const Color(0x36FFFFFF), width: 1.2),
@@ -133,9 +133,9 @@ class _LiquidGlassTabBar extends StatelessWidget {
                   width: segmentWidth,
                   child: DecoratedBox(
                     decoration: BoxDecoration(
-                      color: const Color(0xF5080A10),
+                      color: const Color(0xB20A0D16),
                       borderRadius: BorderRadius.circular(28),
-                      border: Border.all(color: const Color(0x12FFFFFF)),
+                      border: Border.all(color: const Color(0x28FFFFFF)),
                       boxShadow: const [
                         BoxShadow(
                           color: Color(0x18000000),
@@ -225,7 +225,7 @@ class _MiniPlayer extends StatelessWidget {
       child: Container(
         height: 68,
         decoration: BoxDecoration(
-          color: const Color(0xE51A2745),
+          color: const Color(0xB81A2745),
           border: Border.all(color: const Color(0x24FFFFFF)),
           borderRadius: BorderRadius.circular(15),
         ),

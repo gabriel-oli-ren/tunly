@@ -16,31 +16,45 @@ class YoutubeVideoResolver {
   Future<List<VideoMatch>> resolve(
     Track track, {
     void Function()? onFallback,
+    bool ignoreDirectVideoId = false,
   }) async {
     final directId = track.youtubeVideoId;
-    if (directId != null && RegExp(r'^[\w-]{11}$').hasMatch(directId)) {
-      return [
-        VideoMatch(
-          videoId: directId,
-          title: track.title,
-          channel: track.artist,
-          duration: track.duration,
-        ),
-      ];
-    }
+    final directMatch =
+        directId != null && RegExp(r'^[\w-]{11}$').hasMatch(directId)
+        ? VideoMatch(
+            videoId: directId,
+            title: track.title,
+            channel: track.artist,
+            duration: track.duration,
+          )
+        : null;
+    if (directMatch != null && !ignoreDirectVideoId) return [directMatch];
     final query = '${track.artist} ${track.title} official audio';
     Object? lastError;
 
-    for (var index = 0; index < TunlyConfig.pipedInstances.length; index++) {
+    final sources = <({String baseUrl, bool invidious})>[
+      ...TunlyConfig.invidiousInstances.map(
+        (url) => (baseUrl: url, invidious: true),
+      ),
+      ...TunlyConfig.pipedInstances.map(
+        (url) => (baseUrl: url, invidious: false),
+      ),
+    ];
+    for (var index = 0; index < sources.length; index++) {
       if (index > 0) onFallback?.call();
-      final instance = TunlyConfig.pipedInstances[index];
+      final source = sources[index];
+      final instance = source.baseUrl;
       try {
-        final uri = Uri.parse(
-          '$instance/search',
-        ).replace(queryParameters: {'q': query, 'filter': 'videos'});
+        final uri = source.invidious
+            ? Uri.parse(
+                '$instance/api/v1/search',
+              ).replace(queryParameters: {'q': query, 'type': 'video'})
+            : Uri.parse(
+                '$instance/search',
+              ).replace(queryParameters: {'q': query, 'filter': 'videos'});
         final response = await _client
             .get(uri, headers: const {'accept': 'application/json'})
-            .timeout(const Duration(seconds: 5));
+            .timeout(const Duration(seconds: 3));
         if (response.statusCode != 200) {
           throw http.ClientException(
             'Search source returned ${response.statusCode}',
@@ -48,21 +62,37 @@ class YoutubeVideoResolver {
           );
         }
         final body = jsonDecode(utf8.decode(response.bodyBytes));
-        if (body is! Map<String, dynamic> || body['items'] is! List) {
+        final List<VideoMatch> matches;
+        if (source.invidious && body is List) {
+          matches = body
+              .whereType<Map<String, dynamic>>()
+              .map(_parseInvidious)
+              .whereType<VideoMatch>()
+              .toList(growable: false);
+        } else if (!source.invidious &&
+            body is Map<String, dynamic> &&
+            body['items'] is List) {
+          matches = (body['items'] as List)
+              .whereType<Map<String, dynamic>>()
+              .map(_parse)
+              .whereType<VideoMatch>()
+              .toList(growable: false);
+        } else {
           throw const FormatException('Unexpected video search response');
         }
-        final matches = (body['items'] as List)
-            .whereType<Map<String, dynamic>>()
-            .map((item) => _parse(item))
-            .whereType<VideoMatch>()
-            .toList(growable: false);
         final ranked = _rank(track, matches).take(5).toList(growable: false);
-        if (ranked.isNotEmpty) return ranked;
+        if (ranked.isNotEmpty) {
+          return [
+            if (directMatch != null && !ignoreDirectVideoId) directMatch,
+            ...ranked.where((match) => match.videoId != directMatch?.videoId),
+          ];
+        }
         lastError = StateError('No close video match at $instance');
       } catch (error) {
         lastError = error;
       }
     }
+    if (directMatch != null && !ignoreDirectVideoId) return [directMatch];
     throw StateError('All video search sources are unavailable: $lastError');
   }
 
@@ -184,6 +214,24 @@ class YoutubeVideoResolver {
       videoId: videoId,
       title: title,
       channel: uploader is String ? uploader : '',
+      duration: Duration(seconds: seconds),
+    );
+  }
+
+  VideoMatch? _parseInvidious(Map<String, dynamic> item) {
+    if (item['type'] != null && item['type'] != 'video') return null;
+    final videoId = item['videoId'];
+    final title = item['title'];
+    if (videoId is! String ||
+        title is! String ||
+        !RegExp(r'^[\w-]{11}$').hasMatch(videoId)) {
+      return null;
+    }
+    final seconds = (item['lengthSeconds'] as num?)?.toInt() ?? 0;
+    return VideoMatch(
+      videoId: videoId,
+      title: title,
+      channel: item['author'] as String? ?? '',
       duration: Duration(seconds: seconds),
     );
   }
