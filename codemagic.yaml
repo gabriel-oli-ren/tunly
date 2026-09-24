@@ -12,6 +12,10 @@ workflows:
         script: flutter create --platforms=ios .
       - name: Resolve Flutter packages
         script: flutter pub get
+      - name: Install iOS CocoaPods dependencies
+        script: |
+          cd ios
+          pod install
       - name: Build unsigned iOS app
         script: flutter build ios --release --no-codesign
       - name: Package unsigned IPA for sideload signing
