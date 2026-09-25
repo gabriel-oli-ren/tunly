@@ -1,5 +1,8 @@
 /// Public service endpoints live here so providers can be swapped centrally.
 abstract final class TunlyConfig {
+  /// Real app domain used as the native YouTube embed origin on iOS.
+  /// Update this if Tunly is deployed under a different web domain.
+  static const youtubeEmbedOrigin = 'https://gabriel-oli-ren.github.io';
   static const itunesSearchBase = 'https://itunes.apple.com/search';
   static const itunesLookupBase = 'https://itunes.apple.com/lookup';
   static const deezerApiBase = 'https://api.deezer.com';
