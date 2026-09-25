@@ -5,9 +5,11 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart' show Curves, Material;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:youtube_player_iframe/youtube_player_iframe.dart';
+import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 
 import '../../../app/theme.dart';
+import '../../../core/config.dart';
+import '../../../core/presentation/native_cupertino_controls.dart';
 import '../../library/data/library_providers.dart';
 import '../../library/data/local_library.dart';
 import '../../music/data/music_providers.dart';
@@ -113,11 +115,13 @@ class _NowPlayingSheetState extends ConsumerState<_NowPlayingSheet> {
         videoId: matches.first.videoId,
         autoPlay: false,
         params: const YoutubePlayerParams(
-          showControls: true,
+          showControls: false,
           showFullscreenButton: false,
           mute: false,
           strictRelatedVideos: true,
           playsInline: true,
+          origin: TunlyConfig.youtubeEmbedOrigin,
+          privacyEnhancedMode: false,
         ),
       );
       _watchController();
@@ -386,6 +390,22 @@ class _NowPlayingSheetState extends ConsumerState<_NowPlayingSheet> {
     ref.invalidate(likedTracksProvider);
   }
 
+  Future<void> _togglePlayback() async {
+    final controller = _controller;
+    if (controller == null) return;
+    if (_playerState == PlayerState.playing) {
+      await controller.pauseVideo();
+      return;
+    }
+    setState(() {
+      _tryingAnotherSource = false;
+      _message = null;
+    });
+    // Called directly from a user's tap: iOS requires a fresh gesture before
+    // a web view is allowed to start audio.
+    await controller.playVideo();
+  }
+
   Future<void> _addToPlaylist(List<LocalPlaylist> playlists) async {
     if (playlists.isEmpty) return;
     final selected = await showCupertinoModalPopup<LocalPlaylist>(
@@ -508,14 +528,9 @@ class _NowPlayingSheetState extends ConsumerState<_NowPlayingSheet> {
                           ),
                         ),
                       ),
-                      CupertinoButton(
-                        padding: const EdgeInsets.all(8),
+                      TunlyNativeIconButton(
+                        symbol: 'xmark',
                         onPressed: () => Navigator.of(context).pop(),
-                        child: const Icon(
-                          CupertinoIcons.xmark_circle_fill,
-                          size: 24,
-                          color: TunlyTheme.secondaryText,
-                        ),
                       ),
                     ],
                   ),
@@ -633,34 +648,44 @@ class _NowPlayingSheetState extends ConsumerState<_NowPlayingSheet> {
                               ],
                             ),
                           ),
-                          CupertinoButton(
-                            padding: const EdgeInsets.all(8),
+                          TunlyNativeIconButton(
+                            symbol: liked ? 'heart.fill' : 'heart',
+                            tint: liked
+                                ? TunlyTheme.accent
+                                : TunlyTheme.secondaryText,
                             onPressed: _toggleLike,
-                            child: Icon(
-                              liked
-                                  ? CupertinoIcons.heart_fill
-                                  : CupertinoIcons.heart,
-                              color: liked
-                                  ? TunlyTheme.accent
-                                  : TunlyTheme.secondaryText,
-                              size: 23,
-                            ),
                           ),
-                          CupertinoButton(
-                            padding: const EdgeInsets.all(8),
+                          TunlyNativeIconButton(
+                            symbol: 'text.badge.plus',
+                            tint: TunlyTheme.secondaryText,
                             onPressed: playlists.isEmpty
                                 ? null
                                 : () => _addToPlaylist(playlists),
-                            child: const Icon(
-                              CupertinoIcons.text_badge_plus,
-                              color: TunlyTheme.secondaryText,
-                              size: 22,
-                            ),
                           ),
                         ],
                       ),
                       if (controller != null) ...[
                         const SizedBox(height: 14),
+                        if (_playerState != PlayerState.playing &&
+                            _message == null)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: CupertinoButton.filled(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 26,
+                                vertical: 12,
+                              ),
+                              onPressed: _togglePlayback,
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(CupertinoIcons.play_fill, size: 16),
+                                  SizedBox(width: 9),
+                                  Text('Start listening'),
+                                ],
+                              ),
+                            ),
+                          ),
                         _VideoProgress(
                           key: ValueKey(_track.id),
                           controller: controller,
@@ -668,44 +693,43 @@ class _NowPlayingSheetState extends ConsumerState<_NowPlayingSheet> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            CupertinoButton(
-                              padding: const EdgeInsets.all(10),
+                            TunlyNativeIconButton(
+                              size: 42,
+                              symbol: 'shuffle',
+                              tint: _shuffle
+                                  ? TunlyTheme.accent
+                                  : TunlyTheme.secondaryText,
                               onPressed: () =>
                                   setState(() => _shuffle = !_shuffle),
-                              child: Icon(
-                                CupertinoIcons.shuffle,
-                                color: _shuffle
-                                    ? TunlyTheme.accent
-                                    : TunlyTheme.secondaryText,
-                                size: 19,
-                              ),
                             ),
-                            CupertinoButton(
+                            TunlyNativeIconButton(
+                              size: 48,
+                              symbol: 'backward.end.fill',
+                              tint: TunlyTheme.secondaryText,
                               onPressed: _playPrevious,
-                              child: const Icon(
-                                CupertinoIcons.backward_end_fill,
-                                size: 25,
-                              ),
                             ),
-                            const SizedBox(width: 36),
-                            CupertinoButton(
+                            TunlyNativeIconButton(
+                              size: 58,
+                              symbol: _playerState == PlayerState.playing
+                                  ? 'pause.fill'
+                                  : 'play.fill',
+                              tint: TunlyTheme.accent,
+                              onPressed: _togglePlayback,
+                            ),
+                            TunlyNativeIconButton(
+                              size: 48,
+                              symbol: 'forward.end.fill',
+                              tint: TunlyTheme.secondaryText,
                               onPressed: _playNext,
-                              child: const Icon(
-                                CupertinoIcons.forward_end_fill,
-                                size: 25,
-                              ),
                             ),
-                            CupertinoButton(
-                              padding: const EdgeInsets.all(10),
+                            TunlyNativeIconButton(
+                              size: 42,
+                              symbol: 'repeat.1',
+                              tint: _repeatCurrent
+                                  ? TunlyTheme.accent
+                                  : TunlyTheme.secondaryText,
                               onPressed: () => setState(
                                 () => _repeatCurrent = !_repeatCurrent,
-                              ),
-                              child: Icon(
-                                CupertinoIcons.repeat_1,
-                                color: _repeatCurrent
-                                    ? TunlyTheme.accent
-                                    : TunlyTheme.secondaryText,
-                                size: 19,
                               ),
                             ),
                           ],

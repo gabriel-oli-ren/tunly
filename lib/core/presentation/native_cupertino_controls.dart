@@ -71,3 +71,52 @@ class TunlyAddButton extends StatelessWidget {
     );
   }
 }
+
+/// Shared SF Symbol action that uses cupertino_native on iOS/macOS and keeps
+/// the same compact appearance in the development/web fallback.
+class TunlyNativeIconButton extends StatelessWidget {
+  const TunlyNativeIconButton({
+    required this.symbol,
+    required this.onPressed,
+    this.tint = TunlyTheme.secondaryText,
+    this.size = 44,
+    super.key,
+  });
+
+  final String symbol;
+  final VoidCallback? onPressed;
+  final Color tint;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    if (usesNativeCupertino) {
+      return CNButton.icon(
+        icon: CNSymbol(symbol, size: 20),
+        onPressed: onPressed,
+        enabled: onPressed != null,
+        tint: tint,
+        size: size,
+      );
+    }
+    return CupertinoButton(
+      padding: EdgeInsets.zero,
+      onPressed: onPressed,
+      child: Icon(_fallbackIcon(symbol), size: 21, color: tint),
+    );
+  }
+
+  IconData _fallbackIcon(String name) => switch (name) {
+    'xmark' => CupertinoIcons.xmark_circle_fill,
+    'heart.fill' => CupertinoIcons.heart_fill,
+    'heart' => CupertinoIcons.heart,
+    'text.badge.plus' => CupertinoIcons.text_badge_plus,
+    'shuffle' => CupertinoIcons.shuffle,
+    'repeat.1' => CupertinoIcons.repeat_1,
+    'backward.end.fill' => CupertinoIcons.backward_end_fill,
+    'forward.end.fill' => CupertinoIcons.forward_end_fill,
+    'play.fill' => CupertinoIcons.play_fill,
+    'pause.fill' => CupertinoIcons.pause_fill,
+    _ => CupertinoIcons.ellipsis,
+  };
+}

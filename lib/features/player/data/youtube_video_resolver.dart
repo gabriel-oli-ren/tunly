@@ -88,7 +88,9 @@ class YoutubeVideoResolver {
         } else {
           throw const FormatException('Unexpected video search response');
         }
-        final ranked = _rank(track, matches).take(5).toList(growable: false);
+        // Embedding is disabled for some otherwise-valid YouTube videos.
+        // Give the player several alternatives so it can skip those IDs.
+        final ranked = _rank(track, matches).take(12).toList(growable: false);
         if (ranked.isNotEmpty) {
           return [
             if (directMatch != null && !ignoreDirectVideoId) directMatch,
