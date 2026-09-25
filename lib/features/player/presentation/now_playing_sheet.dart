@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:cupertino_native/cupertino_native.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart' show Colors, Curves, Material;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -122,6 +123,7 @@ class _NowPlayingSheetState extends ConsumerState<_NowPlayingSheet> {
           playsInline: true,
           origin: TunlyConfig.youtubeEmbedOrigin,
           privacyEnhancedMode: false,
+          loop: false,
         ),
       );
       _watchController();
@@ -409,7 +411,6 @@ class _NowPlayingSheetState extends ConsumerState<_NowPlayingSheet> {
   Future<void> _closePlayer() async {
     final controller = _controller;
     if (controller != null) {
-      await controller.pauseVideo();
       await controller.close();
       _controller = null;
     }
@@ -470,7 +471,6 @@ class _NowPlayingSheetState extends ConsumerState<_NowPlayingSheet> {
     _playerSubscription?.cancel();
     final controller = _controller;
     if (controller != null) {
-      controller.pauseVideo();
       controller.close();
     }
     super.dispose();
@@ -548,10 +548,10 @@ class _NowPlayingSheetState extends ConsumerState<_NowPlayingSheet> {
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 18),
                   child: controller != null
-                      ? ClipRRect(
-                          borderRadius: BorderRadius.circular(17),
-                          child: AspectRatio(
-                            aspectRatio: 1.45,
+                      ? SizedBox(
+                          height: 1,
+                          child: Opacity(
+                            opacity: 0,
                             child: YoutubePlayer(
                               controller: controller,
                               aspectRatio: 1.45,
@@ -1010,12 +1010,12 @@ class _VideoProgress extends StatelessWidget {
               .toDouble();
           return Column(
             children: [
-              CupertinoSlider(
+              CNSlider(
                 value: value,
                 min: 0,
                 max: max > 0 ? max : 1,
                 onChanged: max <= 0
-                    ? null
+                    ? (next) {}
                     : (next) => controller.seekTo(
                         seconds: next / 1000,
                         allowSeekAhead: true,
