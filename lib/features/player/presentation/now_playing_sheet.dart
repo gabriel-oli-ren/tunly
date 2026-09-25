@@ -6,10 +6,9 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart' show Colors, Curves, Material;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:youtube_player_flutter/youtube_player_flutter.dart';
+import 'package:youtube_player_iframe/youtube_player_iframe.dart';
 
 import '../../../app/theme.dart';
-import '../../../core/config.dart';
 import '../../../core/presentation/native_cupertino_controls.dart';
 import '../../library/data/library_providers.dart';
 import '../../library/data/local_library.dart';
@@ -44,7 +43,6 @@ class _NowPlayingSheet extends ConsumerStatefulWidget {
 
 class _NowPlayingSheetState extends ConsumerState<_NowPlayingSheet> {
   YoutubePlayerController? _controller;
-  StreamSubscription<YoutubePlayerValue>? _playerSubscription;
   late int _queueIndex;
   bool _loading = true;
   bool _tryingAnotherSource = false;
@@ -58,7 +56,6 @@ class _NowPlayingSheetState extends ConsumerState<_NowPlayingSheet> {
   bool _shuffle = false;
   bool _repeatCurrent = false;
   final Set<String> _failedVideoIds = <String>{};
-  bool _searchedForFallback = false;
   String? _sleepLabel;
   PlayerState _playerState = PlayerState.unknown;
   Track get _track => widget.queue[_queueIndex];
@@ -84,7 +81,6 @@ class _NowPlayingSheetState extends ConsumerState<_NowPlayingSheet> {
   Future<void> _resolveTrack() async {
     if (!mounted) return;
     _failedVideoIds.clear();
-    _searchedForFallback = false;
     setState(() {
       _loading = true;
       _tryingAnotherSource = false;
@@ -103,25 +99,21 @@ class _NowPlayingSheetState extends ConsumerState<_NowPlayingSheet> {
       if (matches.isEmpty) {
         setState(() {
           _loading = false;
-          _message =
-              'We couldn’t find a close YouTube match. Try another song.';
+          _message = 'We couldn\'t find a close YouTube match. Try another song.';
         });
         return;
       }
-      await _playerSubscription?.cancel();
       await _controller?.close();
       _matches = matches;
       _matchIndex = 0;
       _controller = YoutubePlayerController.fromVideoId(
         videoId: matches.first.videoId,
-        autoPlay: false,
         params: const YoutubePlayerParams(
           showControls: false,
           showFullscreenButton: false,
           mute: false,
           strictRelatedVideos: true,
           playsInline: true,
-          origin: TunlyConfig.youtubeEmbedOrigin,
           privacyEnhancedMode: false,
           loop: false,
         ),
@@ -137,8 +129,7 @@ class _NowPlayingSheetState extends ConsumerState<_NowPlayingSheet> {
       setState(() {
         _loading = false;
         _tryingAnotherSource = false;
-        _message =
-            'Couldn’t find a playable YouTube video. Check your connection and try again.';
+        _message = 'Couldn\'t find a playable YouTube video. Check your connection and try again.';
       });
     }
   }
@@ -146,32 +137,7 @@ class _NowPlayingSheetState extends ConsumerState<_NowPlayingSheet> {
   void _watchController() {
     final controller = _controller;
     if (controller == null) return;
-    _playerSubscription = controller.listen((value) {
-      if (value.hasError && mounted) {
-        final metadataId = value.metaData.videoId;
-        final metadataIndex = _matches.indexWhere(
-          (match) => match.videoId == metadataId,
-        );
-        final failedIndex = metadataIndex >= 0 ? metadataIndex : _matchIndex;
-        final failedId = metadataId.isNotEmpty
-            ? metadataId
-            : failedIndex < _matches.length
-            ? _matches[failedIndex].videoId
-            : null;
-        if (failedId != null && _failedVideoIds.add(failedId)) {
-          if (failedIndex + 1 < _matches.length) {
-            unawaited(_loadMatch(failedIndex + 1));
-          } else if (!_searchedForFallback) {
-            unawaited(_searchAlternativeVideos());
-          } else {
-            setState(() {
-              _tryingAnotherSource = false;
-              _message =
-                  'YouTube couldn’t play this video. Try another song or check your connection.';
-            });
-          }
-        }
-      }
+    controller.stream.listen((value) {
       if (value.playerState != _playerState && mounted) {
         setState(() => _playerState = value.playerState);
       }
@@ -186,45 +152,6 @@ class _NowPlayingSheetState extends ConsumerState<_NowPlayingSheet> {
         }
       }
     });
-  }
-
-  Future<void> _searchAlternativeVideos() async {
-    _searchedForFallback = true;
-    if (mounted) {
-      setState(() {
-        _tryingAnotherSource = true;
-        _message = null;
-      });
-    }
-    try {
-      final alternatives = await ref
-          .read(youtubeVideoResolverProvider)
-          .resolve(_track, ignoreDirectVideoId: true);
-      if (!mounted) return;
-      final playableCandidates = alternatives
-          .where((match) => !_failedVideoIds.contains(match.videoId))
-          .toList(growable: false);
-      if (playableCandidates.isEmpty) {
-        setState(() {
-          _tryingAnotherSource = false;
-          _message =
-              'YouTube couldn’t play this video. Try another song or check your connection.';
-        });
-        return;
-      }
-      final nextIndex = _matches.length;
-      setState(() {
-        _matches = [..._matches, ...playableCandidates];
-      });
-      await _loadMatch(nextIndex);
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _tryingAnotherSource = false;
-        _message =
-            'Couldn’t find a playable YouTube video. Check your connection and try again.';
-      });
-    }
   }
 
   Future<void> _playNext() async {
@@ -255,7 +182,7 @@ class _NowPlayingSheetState extends ConsumerState<_NowPlayingSheet> {
     if (matches.isEmpty) {
       setState(() {
         _loading = false;
-        _message = 'We couldn’t find the next song. Try another source.';
+        _message = 'We couldn\'t find the next song. Try another source.';
       });
       return;
     }
@@ -266,7 +193,6 @@ class _NowPlayingSheetState extends ConsumerState<_NowPlayingSheet> {
       _matches = matches;
       _matchIndex = 0;
       _failedVideoIds.clear();
-      _searchedForFallback = false;
       _message = null;
       _showLyrics = false;
       _prefetchedQueueIndex = null;
@@ -314,7 +240,7 @@ class _NowPlayingSheetState extends ConsumerState<_NowPlayingSheet> {
     if (matches.isEmpty || _controller == null) {
       setState(() {
         _loading = false;
-        _message = 'We couldn’t find a match for the previous song.';
+        _message = 'We couldn\'t find a match for the previous song.';
       });
       return;
     }
@@ -322,7 +248,6 @@ class _NowPlayingSheetState extends ConsumerState<_NowPlayingSheet> {
       _matches = matches;
       _matchIndex = 0;
       _failedVideoIds.clear();
-      _searchedForFallback = false;
       _loading = false;
       _message = null;
     });
@@ -382,7 +307,9 @@ class _NowPlayingSheetState extends ConsumerState<_NowPlayingSheet> {
     }
     setState(() => _sleepLabel = '$minutes min');
     _sleepTimer = Timer(Duration(minutes: minutes), () {
-      _controller?.pauseVideo();
+      if (_controller != null) {
+        _controller!.stopVideo();
+      }
       if (mounted) setState(() => _sleepLabel = 'Paused');
     });
   }
@@ -396,7 +323,7 @@ class _NowPlayingSheetState extends ConsumerState<_NowPlayingSheet> {
     final controller = _controller;
     if (controller == null) return;
     if (_playerState == PlayerState.playing) {
-      await controller.pauseVideo();
+      controller.stopVideo();
       return;
     }
     setState(() {
@@ -405,7 +332,7 @@ class _NowPlayingSheetState extends ConsumerState<_NowPlayingSheet> {
     });
     // Called directly from a user's tap: iOS requires a fresh gesture before
     // a web view is allowed to start audio.
-    await controller.playVideo();
+    controller.playVideo();
   }
 
   Future<void> _closePlayer() async {
@@ -459,7 +386,7 @@ class _NowPlayingSheetState extends ConsumerState<_NowPlayingSheet> {
       } else if (mounted) {
         setState(() {
           _tryingAnotherSource = false;
-          _message = 'This video can’t play here. Try another song.';
+          _message = 'This video can\'t play here. Try another song.';
         });
       }
     }
@@ -468,7 +395,6 @@ class _NowPlayingSheetState extends ConsumerState<_NowPlayingSheet> {
   @override
   void dispose() {
     _sleepTimer?.cancel();
-    _playerSubscription?.cancel();
     final controller = _controller;
     if (controller != null) {
       controller.close();
@@ -555,7 +481,6 @@ class _NowPlayingSheetState extends ConsumerState<_NowPlayingSheet> {
                             child: YoutubePlayer(
                               controller: controller,
                               aspectRatio: 1.45,
-                              backgroundColor: const Color(0xFF000000),
                             ),
                           ),
                         )
@@ -988,76 +913,93 @@ class _NowPlayingSheetState extends ConsumerState<_NowPlayingSheet> {
   }
 }
 
-class _VideoProgress extends StatelessWidget {
+class _VideoProgress extends StatefulWidget {
   const _VideoProgress({required this.controller, super.key});
   final YoutubePlayerController controller;
 
   @override
-  Widget build(BuildContext context) => StreamBuilder<YoutubePlayerValue>(
-    stream: controller.stream,
-    initialData: controller.value,
-    builder: (context, playerSnapshot) {
-      final duration = playerSnapshot.data?.metaData.duration ?? Duration.zero;
-      final max = duration.inMilliseconds.toDouble();
-      return StreamBuilder<YoutubeVideoState>(
-        stream: controller.videoStateStream,
-        builder: (context, snapshot) {
-          final position = snapshot.data?.position ?? Duration.zero;
-          final remaining = duration - position;
-          final value = position.inMilliseconds
-              .toDouble()
-              .clamp(0, max > 0 ? max : 1)
-              .toDouble();
-          return Column(
-            children: [
-              CNSlider(
-                value: value,
-                min: 0,
-                max: max > 0 ? max : 1,
-                onChanged: max <= 0
-                    ? (next) {}
-                    : (next) => controller.seekTo(
-                        seconds: next / 1000,
-                        allowSeekAhead: true,
-                      ),
+  State<_VideoProgress> createState() => _VideoProgressState();
+}
+
+class _VideoProgressState extends State<_VideoProgress> {
+  Timer? _updateTimer;
+  Duration _position = Duration.zero;
+  Duration _duration = Duration.zero;
+
+  @override
+  void initState() {
+    super.initState();
+    _updateTimer = Timer.periodic(const Duration(milliseconds: 500), (_) {
+      if (mounted) {
+        final value = widget.controller.value;
+        setState(() {
+          _position = Duration(seconds: (value.metaData.duration.inSeconds * value.playbackRate).round());
+          _duration = value.metaData.duration;
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _updateTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final max = _duration.inMilliseconds.toDouble();
+    final remaining = _duration - _position;
+    final valuePosition = _position.inMilliseconds
+        .toDouble()
+        .clamp(0, max > 0 ? max : 1)
+        .toDouble();
+    return Column(
+      children: [
+        CNSlider(
+          value: valuePosition,
+          min: 0,
+          max: max > 0 ? max : 1,
+          onChanged: max <= 0
+              ? (next) {}
+              : (next) => widget.controller.seekTo(
+                  seconds: next / 1000,
+                ),
+        ),
+        Row(
+          children: [
+            Text(
+              _format(_position),
+              style: const TextStyle(
+                fontSize: 11,
+                color: TunlyTheme.secondaryText,
               ),
-              Row(
-                children: [
-                  Text(
-                    _format(position),
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: TunlyTheme.secondaryText,
-                    ),
+            ),
+            const Expanded(
+              child: Center(
+                child: Text(
+                  'NOW PLAYING',
+                  style: TextStyle(
+                    fontSize: 10,
+                    letterSpacing: 2,
+                    fontWeight: FontWeight.w700,
+                    color: TunlyTheme.secondaryText,
                   ),
-                  const Expanded(
-                    child: Center(
-                      child: Text(
-                        'NOW PLAYING',
-                        style: TextStyle(
-                          fontSize: 10,
-                          letterSpacing: 2,
-                          fontWeight: FontWeight.w700,
-                          color: TunlyTheme.secondaryText,
-                        ),
-                      ),
-                    ),
-                  ),
-                  Text(
-                    '-${_format(remaining.isNegative ? Duration.zero : remaining)}',
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: TunlyTheme.secondaryText,
-                    ),
-                  ),
-                ],
+                ),
               ),
-            ],
-          );
-        },
-      );
-    },
-  );
+            ),
+            Text(
+              '-${_format(remaining.isNegative ? Duration.zero : remaining)}',
+              style: const TextStyle(
+                fontSize: 11,
+                color: TunlyTheme.secondaryText,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
 
   String _format(Duration duration) {
     String two(int value) => value.toString().padLeft(2, '0');

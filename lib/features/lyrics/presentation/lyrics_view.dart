@@ -4,7 +4,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart' show Colors;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:youtube_player_flutter/youtube_player_flutter.dart';
+import 'package:youtube_player_iframe/youtube_player_iframe.dart';
 
 import '../../../app/theme.dart';
 import '../../music/domain/track.dart';
@@ -41,7 +41,7 @@ class LyricsFullscreenView extends ConsumerStatefulWidget {
 
 class _LyricsFullscreenViewState extends ConsumerState<LyricsFullscreenView> {
   final _scrollController = ScrollController();
-  StreamSubscription<YoutubeVideoState>? _positionSubscription;
+  Timer? _positionTimer;
   Duration _position = Duration.zero;
   int _activeLine = -1;
   List<LyricLine> _lines = const [];
@@ -49,9 +49,12 @@ class _LyricsFullscreenViewState extends ConsumerState<LyricsFullscreenView> {
   @override
   void initState() {
     super.initState();
-    _positionSubscription = widget.controller.videoStateStream.listen((state) {
-      _position = state.position;
-      _syncActiveLine();
+    _positionTimer = Timer.periodic(const Duration(milliseconds: 500), (_) {
+      if (mounted) {
+        final value = widget.controller.value;
+        _position = Duration(seconds: (value.metaData.duration.inSeconds * value.playbackRate).round());
+        _syncActiveLine();
+      }
     });
   }
 
@@ -79,7 +82,7 @@ class _LyricsFullscreenViewState extends ConsumerState<LyricsFullscreenView> {
 
   @override
   void dispose() {
-    _positionSubscription?.cancel();
+    _positionTimer?.cancel();
     _scrollController.dispose();
     super.dispose();
   }
@@ -146,7 +149,6 @@ class _LyricsFullscreenViewState extends ConsumerState<LyricsFullscreenView> {
                   alignment: Alignment.centerLeft,
                   onPressed: () => widget.controller.seekTo(
                     seconds: lyrics.lines[index].time.inMilliseconds / 1000,
-                    allowSeekAhead: true,
                   ),
                   child: AnimatedDefaultTextStyle(
                     duration: const Duration(milliseconds: 240),
@@ -173,7 +175,7 @@ class _LyricsFullscreenViewState extends ConsumerState<LyricsFullscreenView> {
 
 class _LyricsPanelState extends ConsumerState<LyricsPanel> {
   final _scrollController = ScrollController();
-  StreamSubscription<YoutubeVideoState>? _positionSubscription;
+  Timer? _positionTimer;
   Duration _position = Duration.zero;
   int _activeLine = -1;
   List<LyricLine> _lines = const [];
@@ -181,10 +183,12 @@ class _LyricsPanelState extends ConsumerState<LyricsPanel> {
   @override
   void initState() {
     super.initState();
-    _positionSubscription = widget.controller.videoStateStream.listen((state) {
-      if (!mounted) return;
-      _position = state.position;
-      _syncLine();
+    _positionTimer = Timer.periodic(const Duration(milliseconds: 500), (_) {
+      if (mounted) {
+        final value = widget.controller.value;
+        _position = Duration(seconds: (value.metaData.duration.inSeconds * value.playbackRate).round());
+        _syncLine();
+      }
     });
   }
 
@@ -212,7 +216,7 @@ class _LyricsPanelState extends ConsumerState<LyricsPanel> {
 
   @override
   void dispose() {
-    _positionSubscription?.cancel();
+    _positionTimer?.cancel();
     _scrollController.dispose();
     super.dispose();
   }
@@ -269,7 +273,6 @@ class _LyricsPanelState extends ConsumerState<LyricsPanel> {
               alignment: Alignment.centerLeft,
               onPressed: () => widget.controller.seekTo(
                 seconds: lyrics.lines[index].time.inMilliseconds / 1000,
-                allowSeekAhead: true,
               ),
               child: Text(
                 lyrics.lines[index].text,
