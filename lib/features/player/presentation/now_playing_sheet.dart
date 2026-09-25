@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/material.dart' show Curves, Material;
+import 'package:flutter/material.dart' show Colors, Curves, Material;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
@@ -406,6 +406,16 @@ class _NowPlayingSheetState extends ConsumerState<_NowPlayingSheet> {
     await controller.playVideo();
   }
 
+  Future<void> _closePlayer() async {
+    final controller = _controller;
+    if (controller != null) {
+      await controller.pauseVideo();
+      await controller.close();
+      _controller = null;
+    }
+    if (mounted) Navigator.of(context).pop();
+  }
+
   Future<void> _addToPlaylist(List<LocalPlaylist> playlists) async {
     if (playlists.isEmpty) return;
     final selected = await showCupertinoModalPopup<LocalPlaylist>(
@@ -530,7 +540,7 @@ class _NowPlayingSheetState extends ConsumerState<_NowPlayingSheet> {
                       ),
                       TunlyNativeIconButton(
                         symbol: 'xmark',
-                        onPressed: () => Navigator.of(context).pop(),
+                        onPressed: _closePlayer,
                       ),
                     ],
                   ),
@@ -541,16 +551,16 @@ class _NowPlayingSheetState extends ConsumerState<_NowPlayingSheet> {
                       ? ClipRRect(
                           borderRadius: BorderRadius.circular(17),
                           child: AspectRatio(
-                            aspectRatio: 16 / 9,
+                            aspectRatio: 1.45,
                             child: YoutubePlayer(
                               controller: controller,
-                              aspectRatio: 16 / 9,
+                              aspectRatio: 1.45,
                               backgroundColor: const Color(0xFF000000),
                             ),
                           ),
                         )
                       : AspectRatio(
-                          aspectRatio: 16 / 9,
+                          aspectRatio: 1.45,
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(17),
                             child: Stack(
@@ -592,278 +602,382 @@ class _NowPlayingSheetState extends ConsumerState<_NowPlayingSheet> {
                     ),
                   ),
                 Expanded(
-                  child: ListView(
-                    physics: const BouncingScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(18, 8, 18, 28),
-                    children: [
-                      if (_message != null) ...[
-                        const SizedBox(height: 12),
-                        Text(
-                          _message!,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: TunlyTheme.secondaryText,
-                            fontSize: 13,
-                          ),
-                        ),
-                        CupertinoButton(
-                          onPressed: _resolveTrack,
-                          child: const Text('Try again'),
-                        ),
-                      ],
-                      Row(
-                        children: [
-                          AnimatedScale(
-                            scale: _playerState == PlayerState.playing
-                                ? 1
-                                : .96,
-                            duration: const Duration(milliseconds: 420),
-                            curve: Curves.easeOutCubic,
-                            child: TrackArtwork(track: _track, size: 62),
-                          ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  _track.title,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    fontSize: 19,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                                const SizedBox(height: 5),
-                                Text(
-                                  _track.artist,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    fontSize: 14,
-                                    color: TunlyTheme.secondaryText,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          TunlyNativeIconButton(
-                            symbol: liked ? 'heart.fill' : 'heart',
-                            tint: liked
-                                ? TunlyTheme.accent
-                                : TunlyTheme.secondaryText,
-                            onPressed: _toggleLike,
-                          ),
-                          TunlyNativeIconButton(
-                            symbol: 'text.badge.plus',
-                            tint: TunlyTheme.secondaryText,
-                            onPressed: playlists.isEmpty
-                                ? null
-                                : () => _addToPlaylist(playlists),
-                          ),
-                        ],
-                      ),
-                      if (controller != null) ...[
-                        const SizedBox(height: 14),
-                        if (_playerState != PlayerState.playing &&
-                            _message == null)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 8),
-                            child: CupertinoButton.filled(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 26,
-                                vertical: 12,
-                              ),
-                              onPressed: _togglePlayback,
-                              child: const Row(
-                                mainAxisSize: MainAxisSize.min,
+                  child: _showLyrics && controller != null
+                      ? Column(
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(22, 10, 22, 8),
+                              child: Row(
                                 children: [
-                                  Icon(CupertinoIcons.play_fill, size: 16),
-                                  SizedBox(width: 9),
-                                  Text('Start listening'),
+                                  TrackArtwork(track: _track, size: 48),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          _track.title,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                        Text(
+                                          _track.artist,
+                                          style: const TextStyle(
+                                            color: TunlyTheme.secondaryText,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  CupertinoButton(
+                                    padding: const EdgeInsets.all(8),
+                                    onPressed: () =>
+                                        setState(() => _showLyrics = false),
+                                    child: const Icon(
+                                      CupertinoIcons.chevron_down,
+                                    ),
+                                  ),
                                 ],
                               ),
                             ),
-                          ),
-                        _VideoProgress(
-                          key: ValueKey(_track.id),
-                          controller: controller,
-                        ),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            TunlyNativeIconButton(
-                              size: 42,
-                              symbol: 'shuffle',
-                              tint: _shuffle
-                                  ? TunlyTheme.accent
-                                  : TunlyTheme.secondaryText,
-                              onPressed: () =>
-                                  setState(() => _shuffle = !_shuffle),
-                            ),
-                            TunlyNativeIconButton(
-                              size: 48,
-                              symbol: 'backward.end.fill',
-                              tint: TunlyTheme.secondaryText,
-                              onPressed: _playPrevious,
-                            ),
-                            TunlyNativeIconButton(
-                              size: 58,
-                              symbol: _playerState == PlayerState.playing
-                                  ? 'pause.fill'
-                                  : 'play.fill',
-                              tint: TunlyTheme.accent,
-                              onPressed: _togglePlayback,
-                            ),
-                            TunlyNativeIconButton(
-                              size: 48,
-                              symbol: 'forward.end.fill',
-                              tint: TunlyTheme.secondaryText,
-                              onPressed: _playNext,
-                            ),
-                            TunlyNativeIconButton(
-                              size: 42,
-                              symbol: 'repeat.1',
-                              tint: _repeatCurrent
-                                  ? TunlyTheme.accent
-                                  : TunlyTheme.secondaryText,
-                              onPressed: () => setState(
-                                () => _repeatCurrent = !_repeatCurrent,
+                            Expanded(
+                              child: LyricsFullscreenView(
+                                track: _track,
+                                controller: controller,
                               ),
                             ),
                           ],
-                        ),
-                        CupertinoButton(
-                          padding: const EdgeInsets.symmetric(vertical: 3),
-                          onPressed: _setSleepTimer,
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(CupertinoIcons.timer, size: 17),
-                              const SizedBox(width: 7),
+                        )
+                      : ListView(
+                          physics: const BouncingScrollPhysics(),
+                          padding: const EdgeInsets.fromLTRB(18, 8, 18, 28),
+                          children: [
+                            if (_message != null) ...[
+                              const SizedBox(height: 12),
                               Text(
-                                _sleepLabel == null
-                                    ? 'Sleep timer'
-                                    : 'Sleep timer · $_sleepLabel',
-                                style: const TextStyle(fontSize: 13),
-                              ),
-                            ],
-                          ),
-                        ),
-                        CupertinoButton(
-                          onPressed: () =>
-                              setState(() => _showLyrics = !_showLyrics),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                _showLyrics
-                                    ? CupertinoIcons.chevron_down
-                                    : CupertinoIcons.quote_bubble,
-                                size: 18,
-                              ),
-                              const SizedBox(width: 8),
-                              Text(_showLyrics ? 'Hide lyrics' : 'Show lyrics'),
-                            ],
-                          ),
-                        ),
-                        if (_showLyrics) ...[
-                          LyricsPanel(track: _track, controller: controller),
-                          const SizedBox(height: 8),
-                        ],
-                      ],
-                      if (widget.queue.length > 1) ...[
-                        const SizedBox(height: 14),
-                        const Text(
-                          'Up next',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        ...widget.queue
-                            .skip(_queueIndex + 1)
-                            .take(6)
-                            .map(
-                              (item) => Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 5,
+                                _message!,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  color: TunlyTheme.secondaryText,
+                                  fontSize: 13,
                                 ),
-                                child: Row(
+                              ),
+                              CupertinoButton(
+                                onPressed: _resolveTrack,
+                                child: const Text('Try again'),
+                              ),
+                            ],
+                            Center(
+                              child: GestureDetector(
+                                onTap: () => setState(() => _showLyrics = true),
+                                child: Stack(
+                                  alignment: Alignment.bottomRight,
                                   children: [
-                                    TrackArtwork(track: item, size: 42),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: Text(
-                                        item.title,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
+                                    AnimatedScale(
+                                      scale: _playerState == PlayerState.playing
+                                          ? 1
+                                          : .985,
+                                      duration: const Duration(
+                                        milliseconds: 420,
+                                      ),
+                                      curve: Curves.easeOutCubic,
+                                      child: Hero(
+                                        tag: 'tunly-art-${_track.id}',
+                                        child: TrackArtwork(
+                                          track: _track,
+                                          size:
+                                              (MediaQuery.sizeOf(
+                                                        context,
+                                                      ).width -
+                                                      48)
+                                                  .clamp(210, 340)
+                                                  .toDouble(),
+                                        ),
                                       ),
                                     ),
-                                    Text(
-                                      item.artist,
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        color: TunlyTheme.secondaryText,
+                                    Padding(
+                                      padding: const EdgeInsets.all(12),
+                                      child: DecoratedBox(
+                                        decoration: BoxDecoration(
+                                          color: const Color(0x99090B12),
+                                          borderRadius: BorderRadius.circular(
+                                            22,
+                                          ),
+                                          border: Border.all(
+                                            color: const Color(0x44FFFFFF),
+                                          ),
+                                        ),
+                                        child: const Padding(
+                                          padding: EdgeInsets.all(10),
+                                          child: Icon(
+                                            CupertinoIcons.quote_bubble_fill,
+                                            size: 19,
+                                            color: Colors.white,
+                                          ),
+                                        ),
                                       ),
                                     ),
                                   ],
                                 ),
                               ),
                             ),
-                      ],
-                      const SizedBox(height: 10),
-                      Container(
-                        padding: const EdgeInsets.all(13),
-                        decoration: BoxDecoration(
-                          color: TunlyTheme.surface,
-                          borderRadius: BorderRadius.circular(14),
+                            const SizedBox(height: 20),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        _track.title,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          fontSize: 19,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 5),
+                                      Text(
+                                        _track.artist,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          color: TunlyTheme.secondaryText,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                TunlyNativeIconButton(
+                                  symbol: liked ? 'heart.fill' : 'heart',
+                                  tint: liked
+                                      ? TunlyTheme.accent
+                                      : TunlyTheme.secondaryText,
+                                  onPressed: _toggleLike,
+                                ),
+                                TunlyNativeIconButton(
+                                  symbol: 'text.badge.plus',
+                                  tint: TunlyTheme.secondaryText,
+                                  onPressed: playlists.isEmpty
+                                      ? null
+                                      : () => _addToPlaylist(playlists),
+                                ),
+                              ],
+                            ),
+                            if (controller != null) ...[
+                              const SizedBox(height: 14),
+                              if (_playerState != PlayerState.playing &&
+                                  _message == null)
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 8),
+                                  child: CupertinoButton.filled(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 26,
+                                      vertical: 12,
+                                    ),
+                                    onPressed: _togglePlayback,
+                                    child: const Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          CupertinoIcons.play_fill,
+                                          size: 16,
+                                        ),
+                                        SizedBox(width: 9),
+                                        Text('Start listening'),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              _VideoProgress(
+                                key: ValueKey(_track.id),
+                                controller: controller,
+                              ),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  TunlyNativeIconButton(
+                                    size: 42,
+                                    symbol: 'shuffle',
+                                    tint: _shuffle
+                                        ? TunlyTheme.accent
+                                        : TunlyTheme.secondaryText,
+                                    onPressed: () =>
+                                        setState(() => _shuffle = !_shuffle),
+                                  ),
+                                  TunlyNativeIconButton(
+                                    size: 48,
+                                    symbol: 'backward.end.fill',
+                                    tint: TunlyTheme.secondaryText,
+                                    onPressed: _playPrevious,
+                                  ),
+                                  TunlyNativeIconButton(
+                                    size: 58,
+                                    symbol: _playerState == PlayerState.playing
+                                        ? 'pause.fill'
+                                        : 'play.fill',
+                                    tint: TunlyTheme.accent,
+                                    onPressed: _togglePlayback,
+                                  ),
+                                  TunlyNativeIconButton(
+                                    size: 48,
+                                    symbol: 'forward.end.fill',
+                                    tint: TunlyTheme.secondaryText,
+                                    onPressed: _playNext,
+                                  ),
+                                  TunlyNativeIconButton(
+                                    size: 42,
+                                    symbol: 'repeat.1',
+                                    tint: _repeatCurrent
+                                        ? TunlyTheme.accent
+                                        : TunlyTheme.secondaryText,
+                                    onPressed: () => setState(
+                                      () => _repeatCurrent = !_repeatCurrent,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              CupertinoButton(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 3,
+                                ),
+                                onPressed: _setSleepTimer,
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Icon(CupertinoIcons.timer, size: 17),
+                                    const SizedBox(width: 7),
+                                    Text(
+                                      _sleepLabel == null
+                                          ? 'Sleep timer'
+                                          : 'Sleep timer · $_sleepLabel',
+                                      style: const TextStyle(fontSize: 13),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              CupertinoButton(
+                                onPressed: () =>
+                                    setState(() => _showLyrics = true),
+                                child: const Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(CupertinoIcons.quote_bubble, size: 18),
+                                    SizedBox(width: 8),
+                                    Text('Show lyrics'),
+                                  ],
+                                ),
+                              ),
+                            ],
+                            if (widget.queue.length > 1) ...[
+                              const SizedBox(height: 14),
+                              const Text(
+                                'Up next',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              ...widget.queue
+                                  .skip(_queueIndex + 1)
+                                  .take(6)
+                                  .map(
+                                    (item) => Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 5,
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          TrackArtwork(track: item, size: 42),
+                                          const SizedBox(width: 10),
+                                          Expanded(
+                                            child: Text(
+                                              item.title,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                          Text(
+                                            item.artist,
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              color: TunlyTheme.secondaryText,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                            ],
+                            const SizedBox(height: 10),
+                            Container(
+                              padding: const EdgeInsets.all(13),
+                              decoration: BoxDecoration(
+                                color: TunlyTheme.surface,
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: const Text(
+                                'Playback is provided by YouTube. Use the visible player controls to start, pause, or change playback. Closing this view stops playback.',
+                                style: TextStyle(
+                                  color: TunlyTheme.secondaryText,
+                                  fontSize: 12,
+                                  height: 1.4,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                CupertinoButton(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                  ),
+                                  onPressed: () => launchUrl(
+                                    Uri.parse(
+                                      'https://www.youtube.com/t/terms',
+                                    ),
+                                    mode: LaunchMode.externalApplication,
+                                  ),
+                                  child: const Text(
+                                    'YouTube Terms',
+                                    style: TextStyle(fontSize: 11),
+                                  ),
+                                ),
+                                const Text(
+                                  '·',
+                                  style: TextStyle(
+                                    color: TunlyTheme.secondaryText,
+                                  ),
+                                ),
+                                CupertinoButton(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                  ),
+                                  onPressed: () => launchUrl(
+                                    Uri.parse(
+                                      'https://policies.google.com/privacy',
+                                    ),
+                                    mode: LaunchMode.externalApplication,
+                                  ),
+                                  child: const Text(
+                                    'Privacy',
+                                    style: TextStyle(fontSize: 11),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
-                        child: const Text(
-                          'Playback is provided by YouTube. Use the visible player controls to start, pause, or change playback. Closing this view stops playback.',
-                          style: TextStyle(
-                            color: TunlyTheme.secondaryText,
-                            fontSize: 12,
-                            height: 1.4,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          CupertinoButton(
-                            padding: const EdgeInsets.symmetric(horizontal: 8),
-                            onPressed: () => launchUrl(
-                              Uri.parse('https://www.youtube.com/t/terms'),
-                              mode: LaunchMode.externalApplication,
-                            ),
-                            child: const Text(
-                              'YouTube Terms',
-                              style: TextStyle(fontSize: 11),
-                            ),
-                          ),
-                          const Text(
-                            '·',
-                            style: TextStyle(color: TunlyTheme.secondaryText),
-                          ),
-                          CupertinoButton(
-                            padding: const EdgeInsets.symmetric(horizontal: 8),
-                            onPressed: () => launchUrl(
-                              Uri.parse('https://policies.google.com/privacy'),
-                              mode: LaunchMode.externalApplication,
-                            ),
-                            child: const Text(
-                              'Privacy',
-                              style: TextStyle(fontSize: 11),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
                 ),
               ],
             ),
@@ -889,6 +1003,7 @@ class _VideoProgress extends StatelessWidget {
         stream: controller.videoStateStream,
         builder: (context, snapshot) {
           final position = snapshot.data?.position ?? Duration.zero;
+          final remaining = duration - position;
           final value = position.inMilliseconds
               .toDouble()
               .clamp(0, max > 0 ? max : 1)
@@ -907,7 +1022,6 @@ class _VideoProgress extends StatelessWidget {
                       ),
               ),
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
                     _format(position),
@@ -916,8 +1030,21 @@ class _VideoProgress extends StatelessWidget {
                       color: TunlyTheme.secondaryText,
                     ),
                   ),
+                  const Expanded(
+                    child: Center(
+                      child: Text(
+                        'NOW PLAYING',
+                        style: TextStyle(
+                          fontSize: 10,
+                          letterSpacing: 2,
+                          fontWeight: FontWeight.w700,
+                          color: TunlyTheme.secondaryText,
+                        ),
+                      ),
+                    ),
+                  ),
                   Text(
-                    _format(duration),
+                    '-${_format(remaining.isNegative ? Duration.zero : remaining)}',
                     style: const TextStyle(
                       fontSize: 11,
                       color: TunlyTheme.secondaryText,
