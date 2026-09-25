@@ -308,7 +308,7 @@ class _NowPlayingSheetState extends ConsumerState<_NowPlayingSheet> {
     setState(() => _sleepLabel = '$minutes min');
     _sleepTimer = Timer(Duration(minutes: minutes), () {
       if (_controller != null) {
-        _controller!.stopVideo();
+        _controller!.pauseVideo();
       }
       if (mounted) setState(() => _sleepLabel = 'Paused');
     });
@@ -323,7 +323,7 @@ class _NowPlayingSheetState extends ConsumerState<_NowPlayingSheet> {
     final controller = _controller;
     if (controller == null) return;
     if (_playerState == PlayerState.playing) {
-      controller.stopVideo();
+      controller.pauseVideo();
       return;
     }
     setState(() {
@@ -474,15 +474,55 @@ class _NowPlayingSheetState extends ConsumerState<_NowPlayingSheet> {
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 18),
                   child: controller != null
-                      ? SizedBox(
-                          height: 1,
-                          child: Opacity(
-                            opacity: 0,
-                            child: YoutubePlayer(
-                              controller: controller,
+                      ? Stack(
+                          children: [
+                            AspectRatio(
                               aspectRatio: 1.45,
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(17),
+                                child: Stack(
+                                  fit: StackFit.expand,
+                                  children: [
+                                    Image.network(
+                                      _track.artworkUrl.toString(),
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, __, ___) =>
+                                          const ColoredBox(
+                                            color: TunlyTheme.surface,
+                                          ),
+                                    ),
+                                    const ColoredBox(color: Color(0x66000000)),
+                                    Center(
+                                      child: _loading || _tryingAnotherSource
+                                          ? const CupertinoActivityIndicator(
+                                              radius: 15,
+                                            )
+                                          : const Icon(
+                                              CupertinoIcons.play_rectangle,
+                                              size: 54,
+                                              color: Color(0xDDFFFFFF),
+                                            ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ),
-                          ),
+                            Positioned(
+                              top: 10,
+                              right: 10,
+                              child: SizedBox(
+                                width: 50,
+                                height: 35,
+                                child: Opacity(
+                                  opacity: 0.1,
+                                  child: YoutubePlayer(
+                                    controller: controller,
+                                    aspectRatio: 1.45,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         )
                       : AspectRatio(
                           aspectRatio: 1.45,
