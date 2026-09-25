@@ -255,34 +255,40 @@ class _GenreGrid extends StatelessWidget {
   const _GenreGrid({required this.onTap});
   final ValueChanged<String> onTap;
   @override
-  Widget build(BuildContext context) => Wrap(
-    spacing: 10,
-    runSpacing: 10,
-    children: [
-      _Genre('Pop', const Color(0xFFB65C78), onTap),
-      _Genre('Hip-Hop', const Color(0xFF7454A6), onTap),
-      _Genre('Chill', const Color(0xFF467B86), onTap),
-      _Genre('Electronic', const Color(0xFFBC713C), onTap),
-      _Genre('Indie', const Color(0xFF627A46), onTap),
-      _Genre('R&B', const Color(0xFF4162A0), onTap),
-      _Genre('Rock', const Color(0xFF99513F), onTap),
-      _Genre('Jazz', const Color(0xFF516C92), onTap),
-    ],
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final width = (constraints.maxWidth - 10) / 2;
+      return Wrap(
+        spacing: 10,
+        runSpacing: 10,
+        children: [
+          _Genre('Pop', const Color(0xFFB65C78), width, onTap),
+          _Genre('Hip-Hop', const Color(0xFF7454A6), width, onTap),
+          _Genre('Chill', const Color(0xFF467B86), width, onTap),
+          _Genre('Electronic', const Color(0xFFBC713C), width, onTap),
+          _Genre('Indie', const Color(0xFF627A46), width, onTap),
+          _Genre('R&B', const Color(0xFF4162A0), width, onTap),
+          _Genre('Rock', const Color(0xFF99513F), width, onTap),
+          _Genre('Jazz', const Color(0xFF516C92), width, onTap),
+        ],
+      );
+    },
   );
 }
 
 class _Genre extends StatelessWidget {
-  const _Genre(this.label, this.color, this.onTap);
+  const _Genre(this.label, this.color, this.width, this.onTap);
   final String label;
   final Color color;
+  final double width;
   final ValueChanged<String> onTap;
   @override
   Widget build(BuildContext context) => CupertinoButton(
     padding: EdgeInsets.zero,
     onPressed: () => onTap(label),
     child: Container(
-      width: 156,
-      height: 88,
+      width: width,
+      height: 102,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: color,

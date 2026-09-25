@@ -114,7 +114,7 @@ class _NowPlayingSheetState extends ConsumerState<_NowPlayingSheet> {
         autoPlay: false,
         params: const YoutubePlayerParams(
           showControls: true,
-          showFullscreenButton: true,
+          showFullscreenButton: false,
           mute: false,
           strictRelatedVideos: true,
           playsInline: true,
@@ -526,28 +526,42 @@ class _NowPlayingSheetState extends ConsumerState<_NowPlayingSheet> {
                       ? ClipRRect(
                           borderRadius: BorderRadius.circular(17),
                           child: AspectRatio(
-                            aspectRatio: 4 / 3,
+                            aspectRatio: 16 / 9,
                             child: YoutubePlayer(
                               controller: controller,
-                              aspectRatio: 4 / 3,
+                              aspectRatio: 16 / 9,
+                              backgroundColor: const Color(0xFF000000),
                             ),
                           ),
                         )
                       : AspectRatio(
-                          aspectRatio: 4 / 3,
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: TunlyTheme.surface,
-                              borderRadius: BorderRadius.circular(17),
-                            ),
-                            child: Center(
-                              child: _loading
-                                  ? const CupertinoActivityIndicator(radius: 15)
-                                  : const Icon(
-                                      CupertinoIcons.play_rectangle,
-                                      size: 54,
-                                      color: TunlyTheme.secondaryText,
-                                    ),
+                          aspectRatio: 16 / 9,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(17),
+                            child: Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                Image.network(
+                                  _track.artworkUrl.toString(),
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) =>
+                                      const ColoredBox(
+                                        color: TunlyTheme.surface,
+                                      ),
+                                ),
+                                const ColoredBox(color: Color(0x66000000)),
+                                Center(
+                                  child: _loading || _tryingAnotherSource
+                                      ? const CupertinoActivityIndicator(
+                                          radius: 15,
+                                        )
+                                      : const Icon(
+                                          CupertinoIcons.play_rectangle,
+                                          size: 54,
+                                          color: Color(0xDDFFFFFF),
+                                        ),
+                                ),
+                              ],
                             ),
                           ),
                         ),
@@ -555,7 +569,7 @@ class _NowPlayingSheetState extends ConsumerState<_NowPlayingSheet> {
                 const SizedBox(height: 8),
                 if (_loading || _tryingAnotherSource)
                   const Text(
-                    'Trying another source…',
+                    'Finding a playable video…',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: TunlyTheme.secondaryText,

@@ -32,14 +32,45 @@ class HomePage extends ConsumerWidget {
           largeTitle: Text(_greeting),
           backgroundColor: TunlyTheme.background.withValues(alpha: .94),
           border: null,
-          trailing: CupertinoButton(
-            padding: const EdgeInsets.only(left: 8, right: 4),
-            onPressed: () => showMusicRegionSettings(context),
-            child: const Icon(
-              CupertinoIcons.settings,
-              color: TunlyTheme.secondaryText,
-              size: 20,
-            ),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CupertinoButton(
+                padding: const EdgeInsets.all(7),
+                onPressed: () => showCupertinoDialog<void>(
+                  context: context,
+                  builder: (dialogContext) => CupertinoAlertDialog(
+                    title: const Text('Listening in Tunly'),
+                    content: const Padding(
+                      padding: EdgeInsets.only(top: 8),
+                      child: Text(
+                        'Songs play in the official YouTube player. Tap its play button to begin.',
+                      ),
+                    ),
+                    actions: [
+                      CupertinoDialogAction(
+                        onPressed: () => Navigator.pop(dialogContext),
+                        child: const Text('Got it'),
+                      ),
+                    ],
+                  ),
+                ),
+                child: const Icon(
+                  CupertinoIcons.question_circle,
+                  color: TunlyTheme.secondaryText,
+                  size: 20,
+                ),
+              ),
+              CupertinoButton(
+                padding: const EdgeInsets.only(left: 7, right: 4),
+                onPressed: () => showMusicRegionSettings(context),
+                child: const Icon(
+                  CupertinoIcons.settings,
+                  color: TunlyTheme.secondaryText,
+                  size: 20,
+                ),
+              ),
+            ],
           ),
         ),
         CupertinoSliverRefreshControl(
@@ -114,7 +145,7 @@ class _FeedContent extends StatelessWidget {
               crossAxisCount: 2,
               mainAxisSpacing: 9,
               crossAxisSpacing: 9,
-              mainAxisExtent: 64,
+              mainAxisExtent: 54,
             ),
             itemBuilder: (context, index) => _QuickPick(
               track: recent[index],
@@ -135,7 +166,7 @@ class _FeedContent extends StatelessWidget {
               crossAxisCount: 2,
               mainAxisSpacing: 9,
               crossAxisSpacing: 9,
-              mainAxisExtent: 64,
+              mainAxisExtent: 54,
             ),
             itemBuilder: (context, index) => _QuickPick(
               track: quickPicks[index],
@@ -234,7 +265,7 @@ class _QuickPick extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: Row(
         children: [
-          TrackArtwork(track: track, size: 64),
+          TrackArtwork(track: track, size: 54),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
@@ -356,7 +387,7 @@ class _GenreGrid extends StatelessWidget {
                 onPressed: () => onTap(item.$1),
                 child: Container(
                   width: width,
-                  height: 92,
+                  height: 102,
                   clipBehavior: Clip.antiAlias,
                   padding: const EdgeInsets.all(15),
                   decoration: BoxDecoration(

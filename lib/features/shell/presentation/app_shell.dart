@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../app/theme.dart';
 import '../../home/presentation/home_page.dart';
+import '../../home/presentation/feed_page.dart';
 import '../../library/data/library_providers.dart';
 import '../../library/presentation/library_page.dart';
 import '../../music/domain/track.dart';
@@ -22,6 +23,7 @@ class AppShell extends ConsumerWidget {
   int get _index => switch (tab) {
     'search' => 1,
     'library' => 2,
+    'feed' => 3,
     _ => 0,
   };
 
@@ -31,6 +33,7 @@ class AppShell extends ConsumerWidget {
       const HomePage(),
       SearchPage(initialQuery: searchQuery),
       const LibraryPage(),
+      const FeedPage(),
     ];
     final history =
         ref.watch(listeningHistoryProvider).valueOrNull ?? const <Track>[];
@@ -62,6 +65,7 @@ class AppShell extends ConsumerWidget {
                       context.go(switch (index) {
                         1 => '/search',
                         2 => '/library',
+                        3 => '/feed',
                         _ => '/home',
                       });
                     },
@@ -89,6 +93,7 @@ class _LiquidGlassTabBar extends StatelessWidget {
     ('Home', CupertinoIcons.house_fill),
     ('Search', CupertinoIcons.search),
     ('Your Library', CupertinoIcons.music_note_list),
+    ('Feed', CupertinoIcons.chat_bubble_2_fill),
   ];
 
   @override
@@ -121,7 +126,7 @@ class _LiquidGlassTabBar extends StatelessWidget {
         ),
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final segmentWidth = (constraints.maxWidth - 12) / 3;
+            final segmentWidth = (constraints.maxWidth - 12) / _items.length;
             return Stack(
               children: [
                 AnimatedPositioned(

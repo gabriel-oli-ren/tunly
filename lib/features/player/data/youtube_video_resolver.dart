@@ -12,6 +12,7 @@ class YoutubeVideoResolver {
   YoutubeVideoResolver(this._client);
   final http.Client _client;
   final Map<String, ({DateTime expires, List<Track> tracks})> _trendCache = {};
+  final Map<String, DateTime> _unhealthyUntil = {};
 
   Future<List<VideoMatch>> resolve(
     Track track, {
@@ -40,10 +41,16 @@ class YoutubeVideoResolver {
         (url) => (baseUrl: url, invidious: false),
       ),
     ];
+    final searchClock = Stopwatch()..start();
     for (var index = 0; index < sources.length; index++) {
+      if (searchClock.elapsed >= const Duration(seconds: 8)) break;
       if (index > 0) onFallback?.call();
       final source = sources[index];
       final instance = source.baseUrl;
+      final unhealthyUntil = _unhealthyUntil[instance];
+      if (unhealthyUntil != null && unhealthyUntil.isAfter(DateTime.now())) {
+        continue;
+      }
       try {
         final uri = source.invidious
             ? Uri.parse(
@@ -54,13 +61,14 @@ class YoutubeVideoResolver {
               ).replace(queryParameters: {'q': query, 'filter': 'videos'});
         final response = await _client
             .get(uri, headers: const {'accept': 'application/json'})
-            .timeout(const Duration(seconds: 3));
+            .timeout(const Duration(seconds: 2));
         if (response.statusCode != 200) {
           throw http.ClientException(
             'Search source returned ${response.statusCode}',
             uri,
           );
         }
+        _unhealthyUntil.remove(instance);
         final body = jsonDecode(utf8.decode(response.bodyBytes));
         final List<VideoMatch> matches;
         if (source.invidious && body is List) {
@@ -90,6 +98,9 @@ class YoutubeVideoResolver {
         lastError = StateError('No close video match at $instance');
       } catch (error) {
         lastError = error;
+        _unhealthyUntil[instance] = DateTime.now().add(
+          const Duration(minutes: 2),
+        );
       }
     }
     if (directMatch != null && !ignoreDirectVideoId) return [directMatch];
@@ -108,14 +119,14 @@ class YoutubeVideoResolver {
       return cached.tracks;
     }
     Object? lastError;
-    for (final instance in TunlyConfig.pipedInstances) {
+    for (final instance in TunlyConfig.pipedInstances.take(2)) {
       try {
         final uri = Uri.parse(
           '$instance/trending',
         ).replace(queryParameters: {'region': key});
         final response = await _client
             .get(uri, headers: const {'accept': 'application/json'})
-            .timeout(const Duration(seconds: 5));
+            .timeout(const Duration(milliseconds: 1800));
         if (response.statusCode != 200) {
           throw http.ClientException(
             'Trending source returned ${response.statusCode}',
@@ -273,6 +284,13 @@ class YoutubeVideoResolver {
 
   Set<String> _tokens(String value) => value
       .toLowerCase()
+      .replaceAll(RegExp('[áàâäã]'), 'a')
+      .replaceAll(RegExp('[éèêë]'), 'e')
+      .replaceAll(RegExp('[íìîï]'), 'i')
+      .replaceAll(RegExp('[óòôöõ]'), 'o')
+      .replaceAll(RegExp('[úùûü]'), 'u')
+      .replaceAll('ñ', 'n')
+      .replaceAll('ç', 'c')
       .replaceAll(RegExp(r'\([^)]*\)|\[[^\]]*\]'), ' ')
       .replaceAll(RegExp(r'[^a-z0-9]+'), ' ')
       .split(' ')

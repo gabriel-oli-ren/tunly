@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart' show Material, ReorderableListView;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../app/theme.dart';
 import '../../../core/presentation/native_cupertino_controls.dart';
@@ -58,6 +59,15 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
     final liked = ref.watch(likedTracksProvider);
     final history = ref.watch(listeningHistoryProvider);
     final playlists = ref.watch(localPlaylistsProvider);
+    final artists = <String, Track>{};
+    for (final track in [
+      ...(liked.valueOrNull ?? const <Track>[]),
+      ...(history.valueOrNull ?? const <Track>[]),
+      ...(playlists.valueOrNull?.expand((playlist) => playlist.tracks) ??
+          const <Track>[]),
+    ]) {
+      artists.putIfAbsent(track.artist, () => track);
+    }
     return CustomScrollView(
       physics: const BouncingScrollPhysics(),
       slivers: [
@@ -65,8 +75,16 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
           transitionBetweenRoutes: false,
           largeTitle: const Text('Your Library'),
           border: null,
-          trailing: TunlyAddButton(
-            onPressed: () => _createPlaylist(context, ref),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CupertinoButton(
+                padding: const EdgeInsets.all(8),
+                onPressed: () => context.go('/search'),
+                child: const Icon(CupertinoIcons.search, size: 20),
+              ),
+              TunlyAddButton(onPressed: () => _createPlaylist(context, ref)),
+            ],
           ),
         ),
         SliverPadding(
@@ -74,15 +92,21 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
           sliver: SliverList.list(
             children: [
               TunlySegmentedControl(
-                labels: const ['Playlists', 'Liked', 'History'],
-                selectedIndex: switch (_section) {
-                  'Liked' => 1,
-                  'History' => 2,
-                  _ => 0,
-                },
+                labels: const ['Playlists', 'Artists', 'Liked', 'History'],
+                selectedIndex: const [
+                  'Playlists',
+                  'Artists',
+                  'Liked',
+                  'History',
+                ].indexOf(_section),
                 onChanged: (value) {
                   setState(
-                    () => _section = ['Playlists', 'Liked', 'History'][value],
+                    () => _section = const [
+                      'Playlists',
+                      'Artists',
+                      'Liked',
+                      'History',
+                    ][value],
                   );
                 },
               ),
@@ -119,6 +143,22 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                               .toList(),
                         ),
                 ),
+              ] else if (_section == 'Artists') ...[
+                const _SectionTitle('Artists you saved'),
+                if (artists.isEmpty)
+                  const _EmptyNote(
+                    'Save a song or add one to a playlist to see its artist here.',
+                  )
+                else
+                  ...artists.entries.map(
+                    (entry) => _ArtistRow(
+                      name: entry.key,
+                      track: entry.value,
+                      onTap: () => context.go(
+                        '/search?q=${Uri.encodeQueryComponent(entry.key)}',
+                      ),
+                    ),
+                  ),
               ] else if (_section == 'Liked') ...[
                 const _SectionTitle('Liked songs'),
                 liked.when(
@@ -211,6 +251,46 @@ class _EmptyNote extends StatelessWidget {
     child: Text(
       text,
       style: const TextStyle(color: TunlyTheme.secondaryText, fontSize: 14),
+    ),
+  );
+}
+
+class _ArtistRow extends StatelessWidget {
+  const _ArtistRow({
+    required this.name,
+    required this.track,
+    required this.onTap,
+  });
+
+  final String name;
+  final Track track;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 13),
+    child: CupertinoButton(
+      padding: EdgeInsets.zero,
+      onPressed: onTap,
+      child: Row(
+        children: [
+          ClipOval(child: TrackArtwork(track: track, size: 58)),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Text(
+              name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 16),
+            ),
+          ),
+          const Icon(
+            CupertinoIcons.chevron_right,
+            size: 16,
+            color: TunlyTheme.secondaryText,
+          ),
+        ],
+      ),
     ),
   );
 }
