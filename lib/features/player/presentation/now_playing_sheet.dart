@@ -332,7 +332,13 @@ class _NowPlayingSheetState extends ConsumerState<_NowPlayingSheet> {
     });
     // Called directly from a user's tap: iOS requires a fresh gesture before
     // a web view is allowed to start audio.
-    controller.playVideo();
+    try {
+      controller.playVideo();
+    } catch (e) {
+      if (mounted) {
+        setState(() => _message = 'Failed to start playback. Try again.');
+      }
+    }
   }
 
   Future<void> _closePlayer() async {
